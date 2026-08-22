@@ -201,6 +201,87 @@
                         <input type="text" id="attendanceSearch" oninput="renderAttendanceTable()" placeholder="Search staff email or ID..." class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 w-full sm:w-64">
                     </div>
 
+                    <!-- Attendance Controls Header -->
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 class="text-sm font-bold text-white tracking-wide uppercase">Attendance Logs</h3>
+                            <p class="text-xs text-slate-400">View and manage staff daily check-ins and emergency entries</p>
+                        </div>
+                        <button onclick="openManualAttendanceModal()" class="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-indigo-600/20">
+                            <i class="fa-solid fa-user-plus text-[10px]"></i> Add Emergency / Manual Entry
+                        </button>
+                    </div>
+
+                    <!-- Manual Entry / Emergency Leave Modal -->
+                    <div id="manualAttendanceModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
+                        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+                            <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+                                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-file-signature text-indigo-400"></i> Add Attendance / Emergency Leave
+                                </h3>
+                                <button onclick="closeManualAttendanceModal()" class="text-slate-400 hover:text-white transition">
+                                    <i class="fa-solid fa-xmark text-base"></i>
+                                </button>
+                            </div>
+
+                            <form id="manualAttendanceForm" onsubmit="handleManualAttendanceSubmit(event)" class="space-y-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-400 mb-1">Staff Name *</label>
+                                    <input type="text" id="manualEmpName" required placeholder="e.g. Ahmad Razak" class="w-full bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500" />
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-400 mb-1">Staff Email *</label>
+                                    <input type="email" id="manualUserEmail" required placeholder="staff@gmail.com" class="w-full bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500" />
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-400 mb-1">Date *</label>
+                                        <input type="date" id="manualAttendanceDate" required class="w-full bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-400 mb-1">Status *</label>
+                                        <select id="manualStatus" class="w-full bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500">
+                                            <option value="EMERGENCY LEAVE">Emergency Leave (EL)</option>
+                                            <option value="MEDICAL LEAVE">Medical Leave (MC)</option>
+                                            <option value="ON TIME">Present (On Time)</option>
+                                            <option value="LATE">Present (Late)</option>
+                                            <option value="ABSENT">Absent</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-400 mb-1">Clock In (Optional)</label>
+                                        <input type="time" id="manualClockIn" class="w-full bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-400 mb-1">Clock Out (Optional)</label>
+                                        <input type="time" id="manualClockOut" class="w-full bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500" />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-400 mb-1">Reason / Remarks</label>
+                                    <textarea id="manualRemarks" rows="2" placeholder="State reason for emergency leave or manual edit..." class="w-full bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500 resize-none"></textarea>
+                                </div>
+
+                                <!-- Optional Document Attachment -->
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-400 mb-1">File Attachment / Proof (Optional)</label>
+                                    <input type="file" id="manualAttachment" accept="image/*,.pdf" class="w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-indigo-400 hover:file:bg-slate-700 cursor-pointer" />
+                                </div>
+
+                                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                                    <button type="button" onclick="closeManualAttendanceModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition">Cancel</button>
+                                    <button type="submit" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition">Save Record</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
                     <div class="overflow-x-auto mt-4">
                         <table class="w-full text-left text-xs text-slate-300">
                             <thead class="bg-slate-950 text-slate-400 uppercase text-[10px] border-b border-slate-800">
@@ -1001,6 +1082,77 @@
             }
         }
 
+        // Function to open the Manual Attendance Modal
+        function openManualAttendanceModal() {
+            const form = document.getElementById('manualAttendanceForm');
+            if (form) form.reset();
+            
+            // Default to today's date
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('manualAttendanceDate').value = today;
+            
+            document.getElementById('manualAttendanceModal').classList.remove('hidden');
+        }
+
+        // Function to close the Manual Attendance Modal
+        function closeManualAttendanceModal() {
+            document.getElementById('manualAttendanceModal').classList.add('hidden');
+        }
+
+        // Handle Form Submission with Base64 File Converter
+        function handleManualAttendanceSubmit(e) {
+            e.preventDefault();
+
+            const empName = document.getElementById('manualEmpName').value.trim();
+            const userEmail = document.getElementById('manualUserEmail').value.trim();
+            const date = document.getElementById('manualAttendanceDate').value;
+            const punctualityStatus = document.getElementById('manualStatus').value;
+            const clockIn = document.getElementById('manualClockIn').value || '--';
+            const clockOut = document.getElementById('manualClockOut').value || '--';
+            const remarks = document.getElementById('manualRemarks').value.trim();
+            const fileInput = document.getElementById('manualAttachment');
+            const file = fileInput.files[0];
+
+            const recordData = {
+                empName,
+                userEmail,
+                date,
+                punctualityStatus,
+                clockIn,
+                clockOut,
+                remarks,
+                durationText: (clockIn !== '--' && clockOut !== '--') ? `${clockIn} - ${clockOut}` : 'Full Day',
+                createdByAdmin: true,
+                timestamp: Date.now()
+            };
+
+            // Process optional attachment if uploaded
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function (event) {
+                    recordData.hasAttachment = true;
+                    recordData.attachmentBase64 = event.target.result;
+                    recordData.attachmentFileName = file.name;
+
+                    saveAttendanceRecord(recordData);
+                };
+                reader.readAsDataURL(file);
+            } else {
+                recordData.hasAttachment = false;
+                saveAttendanceRecord(recordData);
+            }
+        }
+
+        function saveAttendanceRecord(payload) {
+            db.ref('attendance_logs').push(payload)
+                .then(() => {
+                    showToast("Emergency leave/attendance entry added successfully.");
+                    closeManualAttendanceModal();
+                })
+                .catch(err => showToast(err.message, 'error'));
+        }
+
+        // Render Attendance Table with Support for Emergency Badges & Attachments
         function renderAttendanceTable() {
             const tbody = document.getElementById('attendanceLogsTableBody');
             const search = (document.getElementById('attendanceSearch')?.value || '').toLowerCase();
@@ -1009,18 +1161,26 @@
             const filtered = attendanceLogs.filter(log => {
                 const name = (log.empName || '').toLowerCase();
                 const email = (log.userEmail || '').toLowerCase();
-                const id = (log.empId || '').toLowerCase();
-                return name.includes(search) || email.includes(search) || id.includes(search);
+                const status = (log.punctualityStatus || '').toLowerCase();
+                return name.includes(search) || email.includes(search) || status.includes(search);
             });
 
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500 text-xs">No matching attendance logs found.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-slate-500 text-xs">No matching attendance logs found.</td></tr>`;
                 return;
             }
 
             filtered.forEach(log => {
-                const isAbsent = log.punctualityStatus === 'ABSENT' || log.statusColor === 'red';
-                const badgeClass = isAbsent ? 'bg-rose-500/20 text-rose-400 border-rose-500/40' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
+                let badgeClass = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
+                const status = log.punctualityStatus || 'ON TIME';
+
+                if (status === 'ABSENT' || log.statusColor === 'red') {
+                    badgeClass = 'bg-rose-500/20 text-rose-400 border-rose-500/40';
+                } else if (status === 'EMERGENCY LEAVE' || status === 'MEDICAL LEAVE') {
+                    badgeClass = 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+                } else if (status === 'LATE') {
+                    badgeClass = 'bg-orange-500/20 text-orange-400 border-orange-500/40';
+                }
 
                 const row = document.createElement('tr');
                 row.className = 'hover:bg-slate-900/50 transition';
@@ -1032,15 +1192,42 @@
                     </td>
                     <td class="p-3 font-mono text-slate-300">${log.clockIn || '--'}</td>
                     <td class="p-3 font-mono text-slate-300">${log.clockOut || '--'}</td>
-                    <td class="p-3 text-slate-400">${log.durationText || '--'}</td>
+                    <td class="p-3 text-slate-400 text-xs">${log.remarks || log.durationText || '--'}</td>
                     <td class="p-3">
                         <span class="px-2 py-0.5 rounded-full text-[9px] font-bold border ${badgeClass}">
-                            ${log.punctualityStatus || 'ON TIME'}
+                            ${status}
                         </span>
+                    </td>
+                    <td class="p-3 text-right">
+                        ${log.hasAttachment && log.attachmentBase64 ? `
+                            <button onclick="viewAttendanceAttachment('${log.key}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-indigo-400 text-[10px] font-semibold border border-slate-700 transition flex items-center gap-1 ml-auto">
+                                <i class="fa-solid fa-paperclip"></i> View File
+                            </button>
+                        ` : '<span class="text-slate-600 text-[10px]">No File</span>'}
                     </td>
                 `;
                 tbody.appendChild(row);
             });
+        }
+
+        // Viewer helper for viewing emergency attachments
+        function viewAttendanceAttachment(key) {
+            const log = attendanceLogs.find(a => a.key === key);
+            if (!log || !log.attachmentBase64) return;
+
+            const modal = document.getElementById('attachmentModal');
+            const viewer = document.getElementById('attachmentViewer');
+            document.getElementById('attachmentModalTitle').textContent = `Attachment: ${log.attachmentFileName || 'Document'}`;
+
+            if (log.attachmentBase64.startsWith('data:image/')) {
+                viewer.innerHTML = `<img src="${log.attachmentBase64}" class="max-w-full h-auto rounded-lg shadow-lg">`;
+            } else if (log.attachmentBase64.startsWith('data:application/pdf')) {
+                viewer.innerHTML = `<iframe src="${log.attachmentBase64}" class="w-full h-[60vh] rounded-lg"></iframe>`;
+            } else {
+                viewer.innerHTML = `<a href="${log.attachmentBase64}" download="${log.attachmentFileName || 'attachment'}" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">Download File</a>`;
+            }
+
+            modal.classList.remove('hidden');
         }
 
         function renderLeavesUI() {
