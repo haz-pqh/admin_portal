@@ -1253,21 +1253,81 @@
             });
         }
 
-        // Viewer helper for viewing emergency attachments
+        function closeAttachmentModal() {
+            const modal = document.getElementById('attachmentModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
         function viewAttendanceAttachment(key) {
             const log = attendanceLogs.find(a => a.key === key);
-            if (!log || !log.attachmentBase64) return;
+            if (!log || !log.attachmentBase64) {
+                if (typeof showToast === 'function') showToast("No attachment found for this entry.", "error");
+                return;
+            }
 
             const modal = document.getElementById('attachmentModal');
             const viewer = document.getElementById('attachmentViewer');
-            document.getElementById('attachmentModalTitle').textContent = `Attachment: ${log.attachmentFileName || 'Document'}`;
+            const title = document.getElementById('attachmentModalTitle');
 
-            if (log.attachmentBase64.startsWith('data:image/')) {
-                viewer.innerHTML = `<img src="${log.attachmentBase64}" class="max-w-full h-auto rounded-lg shadow-lg">`;
-            } else if (log.attachmentBase64.startsWith('data:application/pdf')) {
-                viewer.innerHTML = `<iframe src="${log.attachmentBase64}" class="w-full h-[60vh] rounded-lg"></iframe>`;
-            } else {
-                viewer.innerHTML = `<a href="${log.attachmentBase64}" download="${log.attachmentFileName || 'attachment'}" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">Download File</a>`;
+            if (!modal || !viewer) {
+                alert("Attachment preview modal missing in HTML.");
+                return;
+            }
+
+            title.textContent = `Attachment: ${log.attachmentFileName || 'Document'}`;
+            viewer.innerHTML = '';
+
+            const base64Data = log.attachmentBase64;
+
+            // Handle Image Files
+            if (base64Data.includes('data:image/')) {
+                viewer.innerHTML = `<img src="${base64Data}" class="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg">`;
+            } 
+            // Handle PDF Files
+            else if (base64Data.includes('data:application/pdf')) {
+                try {
+                    // Convert Base64 string to Blob URL for iframe rendering compatibility
+                    const base64Parts = base64Data.split(',');
+                    const contentType = base64Parts[0].match(/:(.*?);/)[1];
+                    const raw = window.atob(base64Parts[1]);
+                    const rawLength = raw.length;
+                    const uInt8Array = new Uint8Array(rawLength);
+
+                    for (let i = 0; i < rawLength; ++i) {
+                        uInt8Array[i] = raw.charCodeAt(i);
+                    }
+
+                    const blob = new Blob([uInt8Array], { type: contentType });
+                    const blobUrl = URL.createObjectURL(blob);
+
+                    viewer.innerHTML = `
+                        <div class="w-full flex flex-col items-center gap-3">
+                            <object data="${blobUrl}" type="application/pdf" class="w-full h-[65vh] rounded-xl border border-slate-800">
+                                <iframe src="${blobUrl}" class="w-full h-[65vh] rounded-xl border border-slate-800"></iframe>
+                            </object>
+                            <a href="${blobUrl}" target="_blank" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2">
+                                <i class="fa-solid fa-arrow-up-right-from-square"></i> Open in New Tab / Download PDF
+                            </a>
+                        </div>
+                    `;
+                } catch (err) {
+                    viewer.innerHTML = `
+                        <div class="text-center p-6">
+                            <p class="text-slate-400 text-xs mb-3">Unable to embed PDF viewer.</p>
+                            <a href="${base64Data}" download="${log.attachmentFileName || 'document.pdf'}" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition">
+                                Download PDF File
+                            </a>
+                        </div>
+                    `;
+                }
+            } 
+            // Fallback for other file types
+            else {
+                viewer.innerHTML = `
+                    <a href="${base64Data}" download="${log.attachmentFileName || 'attachment'}" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold">
+                        Download File (${log.attachmentFileName || 'Attachment'})
+                    </a>
+                `;
             }
 
             modal.classList.remove('hidden');
