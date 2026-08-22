@@ -296,13 +296,13 @@
                     <input type="text" id="branchName" required placeholder="e.g. Ampang Utama Branch" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
                 </div>
 
-                <!-- Free OpenStreetMap / Photon Address Search -->
+                <!-- Free OpenStreetMap / Photon Address Search (Restricted to Malaysia) -->
                 <div class="relative">
                     <div class="flex items-center justify-between mb-1">
-                        <label class="block text-slate-400 font-medium">Search Location / Address (OSM Free Search)</label>
+                        <label class="block text-slate-400 font-medium">Search Location / Address (Malaysia)</label>
                         <i class="fa-solid fa-location-dot text-emerald-400"></i>
                     </div>
-                    <input type="text" id="branchAddress" required placeholder="Start typing address, street, or city..." autocomplete="off" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
+                    <input type="text" id="branchAddress" required placeholder="Start typing address, street, or city in Malaysia..." autocomplete="off" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
                     <!-- Dropdown Suggestions Container -->
                     <ul id="addressSuggestions" class="absolute left-0 right-0 top-full mt-1 bg-slate-900 border border-slate-800 rounded-xl max-h-48 overflow-y-auto z-50 hidden shadow-2xl divide-y divide-slate-800/60"></ul>
                 </div>
@@ -366,7 +366,7 @@
 
         let debounceTimer;
 
-        // OpenStreetMap / Photon Autocomplete Logic
+        // OpenStreetMap / Photon Autocomplete Logic (Restricted to Malaysia: countrycode=MY)
         document.addEventListener('DOMContentLoaded', () => {
             const addressInput = document.getElementById('branchAddress');
             const suggestionsList = document.getElementById('addressSuggestions');
@@ -382,7 +382,8 @@
                 }
 
                 debounceTimer = setTimeout(() => {
-                    fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`)
+                    // Added &countrycode=MY parameter to restrict results to Malaysia
+                    fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&countrycode=MY`)
                         .then(res => res.json())
                         .then(data => {
                             suggestionsList.innerHTML = '';
