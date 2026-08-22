@@ -1081,9 +1081,10 @@
             }
         }
 
-        // Automatically set the default date to today on load
+        // Automatically set default date and load staff dropdown on page load
         document.addEventListener('DOMContentLoaded', () => {
             resetManualAttendanceForm();
+            initStaffDropdown();
         });
 
         // Helper to clear form inputs and set default date
@@ -1095,32 +1096,36 @@
             if (dateInput) dateInput.value = today;
         }
 
-        // Populate the Staff Dropdown dynamically from registered users/staff array
-        function populateStaffDropdown() {
+        // Populate Staff Dropdown dynamically from Firebase 'presence' node
+        function initStaffDropdown() {
             const select = document.getElementById('manualStaffSelect');
             if (!select) return;
 
-            const currentSelection = select.value;
-            select.innerHTML = '<option value="">Select Staff Member</option>';
+            db.ref('presence').on('value', (snapshot) => {
+                const val = snapshot.val();
+                select.innerHTML = '<option value="">Select Staff Member</option>';
 
-            // Reference your existing global users/staff list (e.g., usersList or staffList)
-            const activeStaff = (typeof usersList !== 'undefined') ? usersList : ((typeof staffList !== 'undefined') ? staffList : []);
+                if (!val) return;
 
-            activeStaff.forEach(staff => {
-                const name = staff.name || staff.empName || staff.fullName || 'Unknown Staff';
-                const email = staff.email || staff.userEmail || '';
+                Object.keys(val).forEach(uid => {
+                    const staff = val[uid];
+                    const email = staff.email || '';
 
-                const option = document.createElement('option');
-                // Store both name & email as a stringified object in value
-                option.value = JSON.stringify({ name, email });
-                option.textContent = email ? `${name} (${email})` : name;
-                select.appendChild(option);
+                    if (email) {
+                        // Extract clean display name from email (e.g. hassanhazril -> Hassan Hazril)
+                        const emailPrefix = email.split('@')[0];
+                        const formattedName = staff.name || staff.empName || emailPrefix.replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+                        const option = document.createElement('option');
+                        option.value = JSON.stringify({ name: formattedName, email: email });
+                        option.textContent = `${formattedName} (${email})`;
+                        select.appendChild(option);
+                    }
+                });
             });
-
-            select.value = currentSelection;
         }
 
-        // Updated Form Handler
+        // Form Handler for Manual / Emergency Entry
         function handleManualAttendanceSubmit(e) {
             e.preventDefault();
 
