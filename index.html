@@ -393,59 +393,84 @@
                     </div>
                 </div>
 
-                <!-- SECTION 3: SAUCE & COLESLAW INVENTORY -->
+                <!-- SECTION 3: FLAVOR & ITEM INVENTORY TRACKER TABLE -->
                 <div class="space-y-3">
-                    <h4 class="text-[11px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <i class="fa-solid fa-boxes-stacked"></i> 2. Flavor & Item Inventory Calculations
-                    </h4>
-                    
-                    <!-- CKG -->
-                    <div class="bg-slate-950/40 p-3 rounded-xl border border-slate-800/80 space-y-2">
-                        <div class="flex justify-between items-center">
-                            <span class="font-bold text-slate-300">Cheese & Korean & Garlic (CKG)</span>
-                            <span class="text-[10px] text-slate-400">Price: <strong class="text-indigo-300">RM2.00/cup</strong></span>
-                        </div>
-                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            <input type="number" id="ckgPrev" oninput="recalculateSales()" placeholder="Prev Stock" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono">
-                            <input type="number" id="ckgNew" oninput="recalculateSales()" placeholder="New Stock" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono">
-                            <input type="number" id="ckgPromoFree" oninput="recalculateSales()" placeholder="Promo Free" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono">
-                            <input type="number" id="ckgBalance" oninput="recalculateSales()" placeholder="Balance" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono">
-                        </div>
-                        <div class="text-right text-[11px] text-slate-400">
-                            CKG Sale: <span id="ckgTotalDisplay" class="font-bold text-emerald-400 font-mono">RM 0.00</span>
-                        </div>
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-[11px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <i class="fa-solid fa-boxes-stacked"></i> 2. Flavor & Item Inventory Tracker
+                        </h4>
+                        <span class="text-[10px] text-slate-400">CKG: RM2.00/cup | T&F: RM3.00/cup | Coleslaw: RM3.50/cup (2 cups = RM6.50)</span>
                     </div>
 
-                    <!-- TF -->
-                    <div class="bg-slate-950/40 p-3 rounded-xl border border-slate-800/80 space-y-2">
-                        <div class="flex justify-between items-center">
-                            <span class="font-bold text-slate-300">Furikake & Togarashi (T&F)</span>
-                            <span class="text-[10px] text-slate-400">Price: <strong class="text-indigo-300">RM3.00/cup</strong></span>
-                        </div>
-                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            <input type="number" id="tfPrev" oninput="recalculateSales()" placeholder="Prev Stock" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono">
-                            <input type="number" id="tfNew" oninput="recalculateSales()" placeholder="New Stock" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono">
-                            <input type="number" id="tfPromoFree" oninput="recalculateSales()" placeholder="Promo Free" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono">
-                            <input type="number" id="tfBalance" oninput="recalculateSales()" placeholder="Balance" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono">
-                        </div>
-                        <div class="text-right text-[11px] text-slate-400">
-                            T&F Sale: <span id="tfTotalDisplay" class="font-bold text-emerald-400 font-mono">RM 0.00</span>
-                        </div>
-                    </div>
-
-                    <!-- Coleslaw -->
-                    <div class="bg-slate-950/40 p-3 rounded-xl border border-slate-800/80 space-y-2">
-                        <div class="flex justify-between items-center">
-                            <span class="font-bold text-slate-300">Coleslaw</span>
-                            <span class="text-[10px] text-slate-400">Price: <strong class="text-indigo-300">RM3.50/cup (2 cups = RM6.50)</strong></span>
-                        </div>
-                        <div class="grid grid-cols-2 gap-2">
-                            <input type="number" id="coleslawNew" oninput="recalculateSales()" placeholder="New Stock" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono">
-                            <input type="number" id="coleslawBalance" oninput="recalculateSales()" placeholder="Balance" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono">
-                        </div>
-                        <div class="text-right text-[11px] text-slate-400">
-                            Coleslaw Sale: <span id="coleslawTotalDisplay" class="font-bold text-emerald-400 font-mono">RM 0.00</span>
-                        </div>
+                    <div class="overflow-x-auto bg-slate-950/80 border border-slate-800/80 rounded-2xl p-4 shadow-2xl">
+                        <table class="w-full text-center text-xs border-separate border-spacing-y-2">
+                            <thead>
+                                <tr class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                    <th class="text-left py-2 px-3">Item / Flavor</th>
+                                    <th class="py-2 px-2">Prev Stock</th>
+                                    <th class="py-2 px-2">New Stock</th>
+                                    <th class="py-2 px-2 text-emerald-400">Sold</th>
+                                    <th class="py-2 px-2">Promo Free</th>
+                                    <th class="py-2 px-2">Balance</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-slate-200">
+                                <!-- Cheese -->
+                                <tr>
+                                    <td class="text-left font-bold py-2 px-3 text-slate-300">Cheese</td>
+                                    <td class="px-1.5"><input type="number" id="cheesePrev" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                    <td class="px-1.5"><input type="number" id="cheeseNew" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                    <td class="px-1.5"><input type="number" id="cheeseSold" readonly placeholder="0" class="w-full bg-slate-900/90 border border-emerald-500/50 text-emerald-400 font-bold font-mono text-center rounded-xl py-2 px-2 cursor-not-allowed"></td>
+                                    <td class="px-1.5"><input type="number" id="cheesePromo" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                    <td class="px-1.5"><input type="number" id="cheeseBal" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                </tr>
+                                <!-- Korean -->
+                                <tr>
+                                    <td class="text-left font-bold py-2 px-3 text-slate-300">Korean</td>
+                                    <td class="px-1.5"><input type="number" id="koreanPrev" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                    <td class="px-1.5"><input type="number" id="koreanNew" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                    <td class="px-1.5"><input type="number" id="koreanSold" readonly placeholder="0" class="w-full bg-slate-900/90 border border-emerald-500/50 text-emerald-400 font-bold font-mono text-center rounded-xl py-2 px-2 cursor-not-allowed"></td>
+                                    <td class="px-1.5"><input type="number" id="koreanPromo" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                    <td class="px-1.5"><input type="number" id="koreanBal" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                </tr>
+                                <!-- Garlic -->
+                                <tr>
+                                    <td class="text-left font-bold py-2 px-3 text-slate-300">Garlic</td>
+                                    <td class="px-1.5"><input type="number" id="garlicPrev" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                    <td class="px-1.5"><input type="number" id="garlicNew" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                    <td class="px-1.5"><input type="number" id="garlicSold" readonly placeholder="0" class="w-full bg-slate-900/90 border border-emerald-500/50 text-emerald-400 font-bold font-mono text-center rounded-xl py-2 px-2 cursor-not-allowed"></td>
+                                    <td class="px-1.5"><input type="number" id="garlicPromo" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                    <td class="px-1.5"><input type="number" id="garlicBal" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                </tr>
+                                <!-- Furikake -->
+                                <tr>
+                                    <td class="text-left font-bold py-2 px-3 text-slate-300">Furikake</td>
+                                    <td class="px-1.5"><input type="number" id="furikakePrev" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                    <td class="px-1.5"><input type="number" id="furikakeNew" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                    <td class="px-1.5"><input type="number" id="furikakeSold" readonly placeholder="0" class="w-full bg-slate-900/90 border border-emerald-500/50 text-emerald-400 font-bold font-mono text-center rounded-xl py-2 px-2 cursor-not-allowed"></td>
+                                    <td class="px-1.5"><input type="number" id="furikakePromo" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                    <td class="px-1.5"><input type="number" id="furikakeBal" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                </tr>
+                                <!-- Togarashi -->
+                                <tr>
+                                    <td class="text-left font-bold py-2 px-3 text-slate-300">Togarashi</td>
+                                    <td class="px-1.5"><input type="number" id="togarashiPrev" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                    <td class="px-1.5"><input type="number" id="togarashiNew" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                    <td class="px-1.5"><input type="number" id="togarashiSold" readonly placeholder="0" class="w-full bg-slate-900/90 border border-emerald-500/50 text-emerald-400 font-bold font-mono text-center rounded-xl py-2 px-2 cursor-not-allowed"></td>
+                                    <td class="px-1.5"><input type="number" id="togarashiPromo" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                    <td class="px-1.5"><input type="number" id="togarashiBal" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                </tr>
+                                <!-- Coleslaw -->
+                                <tr>
+                                    <td class="text-left font-bold py-2 px-3 text-slate-300">Coleslaw</td>
+                                    <td class="px-1.5"><input type="number" id="coleslawPrev" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                    <td class="px-1.5"><input type="number" id="coleslawNew" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                    <td class="px-1.5"><input type="number" id="coleslawSold" readonly placeholder="0" class="w-full bg-slate-900/90 border border-emerald-500/50 text-emerald-400 font-bold font-mono text-center rounded-xl py-2 px-2 cursor-not-allowed"></td>
+                                    <td class="px-1.5"><input type="number" id="coleslawPromo" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                    <td class="px-1.5"><input type="number" id="coleslawBal" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-2 text-center text-white font-mono focus:outline-none focus:border-indigo-500"></td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
@@ -1088,6 +1113,14 @@
             return isNaN(val) ? 0 : val;
         }
 
+        function calculateItemSold(prevId, newId, promoId, balId) {
+            const p = getNum(prevId);
+            const n = getNum(newId);
+            const pr = getNum(promoId);
+            const b = getNum(balId);
+            return Math.max(0, (p + n) - (pr + b));
+        }
+
         function recalculateSales() {
             // 1 Bag Ayam = 20 pcs. 1 pc = RM 4.50
             const bagAyam = getNum('salesBagAyam');
@@ -1102,32 +1135,34 @@
             const shopeeFood = getNum('salesShopeeFood');
             const platformSales = misi + lalamove + foodPanda + grabFood + shopeeFood;
 
-            // Cheese & Korean & Garlic -> ((prev stock + new stock) - (promo free + balance)) * 2.00
-            const ckgPrev = getNum('ckgPrev');
-            const ckgNew = getNum('ckgNew');
-            const ckgPromo = getNum('ckgPromoFree');
-            const ckgBal = getNum('ckgBalance');
-            const ckgCupsSold = Math.max(0, (ckgPrev + ckgNew) - (ckgPromo + ckgBal));
-            const ckgTotalSale = ckgCupsSold * 2.00;
-            document.getElementById('ckgTotalDisplay').textContent = `RM ${ckgTotalSale.toFixed(2)}`;
+            // Cheese, Korean & Garlic (RM2.00 / cup)
+            const cheeseSold = calculateItemSold('cheesePrev', 'cheeseNew', 'cheesePromo', 'cheeseBal');
+            document.getElementById('cheeseSold').value = cheeseSold;
 
-            // Furikake & Togarashi -> ((prev stock + new stock) - (promo free + balance)) * 3.00
-            const tfPrev = getNum('tfPrev');
-            const tfNew = getNum('tfNew');
-            const tfPromo = getNum('tfPromoFree');
-            const tfBal = getNum('tfBalance');
-            const tfCupsSold = Math.max(0, (tfPrev + tfNew) - (tfPromo + tfBal));
-            const tfTotalSale = tfCupsSold * 3.00;
-            document.getElementById('tfTotalDisplay').textContent = `RM ${tfTotalSale.toFixed(2)}`;
+            const koreanSold = calculateItemSold('koreanPrev', 'koreanNew', 'koreanPromo', 'koreanBal');
+            document.getElementById('koreanSold').value = koreanSold;
 
-            // Coleslaw -> (new stock - balance). Pricing: 2 cups = RM 6.50, Single = RM 3.50
-            const coleslawNew = getNum('coleslawNew');
-            const coleslawBal = getNum('coleslawBalance');
-            const coleslawSold = Math.max(0, coleslawNew - coleslawBal);
+            const garlicSold = calculateItemSold('garlicPrev', 'garlicNew', 'garlicPromo', 'garlicBal');
+            document.getElementById('garlicSold').value = garlicSold;
+
+            const ckgTotalSale = (cheeseSold + koreanSold + garlicSold) * 2.00;
+
+            // Furikake & Togarashi (RM3.00 / cup)
+            const furikakeSold = calculateItemSold('furikakePrev', 'furikakeNew', 'furikakePromo', 'furikakeBal');
+            document.getElementById('furikakeSold').value = furikakeSold;
+
+            const togarashiSold = calculateItemSold('togarashiPrev', 'togarashiNew', 'togarashiPromo', 'togarashiBal');
+            document.getElementById('togarashiSold').value = togarashiSold;
+
+            const tfTotalSale = (furikakeSold + togarashiSold) * 3.00;
+
+            // Coleslaw (RM3.50/cup, 2 cups = RM6.50)
+            const coleslawSold = calculateItemSold('coleslawPrev', 'coleslawNew', 'coleslawPromo', 'coleslawBal');
+            document.getElementById('coleslawSold').value = coleslawSold;
+
             const coleslawPairs = Math.floor(coleslawSold / 2);
             const coleslawRem = coleslawSold % 2;
             const coleslawTotalSale = (coleslawPairs * 6.50) + (coleslawRem * 3.50);
-            document.getElementById('coleslawTotalDisplay').textContent = `RM ${coleslawTotalSale.toFixed(2)}`;
 
             // Promo 10pcs Ayam -> RM 53.90/one
             const promo10pcsQty = getNum('salesPromo10pcs');
@@ -1219,18 +1254,41 @@
             document.getElementById('salesGrabFood').value = report.grabFood || 0;
             document.getElementById('salesShopeeFood').value = report.shopeeFood || 0;
 
-            document.getElementById('ckgPrev').value = report.ckgPrev || 0;
-            document.getElementById('ckgNew').value = report.ckgNew || 0;
-            document.getElementById('ckgPromoFree').value = report.ckgPromoFree || 0;
-            document.getElementById('ckgBalance').value = report.ckgBalance || 0;
+            // Cheese
+            document.getElementById('cheesePrev').value = report.cheesePrev || 0;
+            document.getElementById('cheeseNew').value = report.cheeseNew || 0;
+            document.getElementById('cheesePromo').value = report.cheesePromo || 0;
+            document.getElementById('cheeseBal').value = report.cheeseBal || 0;
 
-            document.getElementById('tfPrev').value = report.tfPrev || 0;
-            document.getElementById('tfNew').value = report.tfNew || 0;
-            document.getElementById('tfPromoFree').value = report.tfPromoFree || 0;
-            document.getElementById('tfBalance').value = report.tfBalance || 0;
+            // Korean
+            document.getElementById('koreanPrev').value = report.koreanPrev || 0;
+            document.getElementById('koreanNew').value = report.koreanNew || 0;
+            document.getElementById('koreanPromo').value = report.koreanPromo || 0;
+            document.getElementById('koreanBal').value = report.koreanBal || 0;
 
+            // Garlic
+            document.getElementById('garlicPrev').value = report.garlicPrev || 0;
+            document.getElementById('garlicNew').value = report.garlicNew || 0;
+            document.getElementById('garlicPromo').value = report.garlicPromo || 0;
+            document.getElementById('garlicBal').value = report.garlicBal || 0;
+
+            // Furikake
+            document.getElementById('furikakePrev').value = report.furikakePrev || 0;
+            document.getElementById('furikakeNew').value = report.furikakeNew || 0;
+            document.getElementById('furikakePromo').value = report.furikakePromo || 0;
+            document.getElementById('furikakeBal').value = report.furikakeBal || 0;
+
+            // Togarashi
+            document.getElementById('togarashiPrev').value = report.togarashiPrev || 0;
+            document.getElementById('togarashiNew').value = report.togarashiNew || 0;
+            document.getElementById('togarashiPromo').value = report.togarashiPromo || 0;
+            document.getElementById('togarashiBal').value = report.togarashiBal || 0;
+
+            // Coleslaw
+            document.getElementById('coleslawPrev').value = report.coleslawPrev || 0;
             document.getElementById('coleslawNew').value = report.coleslawNew || 0;
-            document.getElementById('coleslawBalance').value = report.coleslawBalance || 0;
+            document.getElementById('coleslawPromo').value = report.coleslawPromo || 0;
+            document.getElementById('coleslawBal').value = report.coleslawBal || 0;
 
             document.getElementById('salesPromo10pcs').value = report.promo10pcs || 0;
             document.getElementById('salesMinyakMasak').value = report.minyakMasakPacks || 0;
@@ -1277,20 +1335,39 @@
                 grabFood: getNum('salesGrabFood'),
                 shopeeFood: getNum('salesShopeeFood'),
 
-                ckgPrev: getNum('ckgPrev'),
-                ckgNew: getNum('ckgNew'),
-                ckgPromoFree: getNum('ckgPromoFree'),
-                ckgBalance: getNum('ckgBalance'),
-                ckgTotalSale: calc.ckgTotalSale,
+                // Flavor & Item Stocks
+                cheesePrev: getNum('cheesePrev'),
+                cheeseNew: getNum('cheeseNew'),
+                cheesePromo: getNum('cheesePromo'),
+                cheeseBal: getNum('cheeseBal'),
 
-                tfPrev: getNum('tfPrev'),
-                tfNew: getNum('tfNew'),
-                tfPromoFree: getNum('tfPromoFree'),
-                tfBalance: getNum('tfBalance'),
-                tfTotalSale: calc.tfTotalSale,
+                koreanPrev: getNum('koreanPrev'),
+                koreanNew: getNum('koreanNew'),
+                koreanPromo: getNum('koreanPromo'),
+                koreanBal: getNum('koreanBal'),
 
+                garlicPrev: getNum('garlicPrev'),
+                garlicNew: getNum('garlicNew'),
+                garlicPromo: getNum('garlicPromo'),
+                garlicBal: getNum('garlicBal'),
+
+                furikakePrev: getNum('furikakePrev'),
+                furikakeNew: getNum('furikakeNew'),
+                furikakePromo: getNum('furikakePromo'),
+                furikakeBal: getNum('furikakeBal'),
+
+                togarashiPrev: getNum('togarashiPrev'),
+                togarashiNew: getNum('togarashiNew'),
+                togarashiPromo: getNum('togarashiPromo'),
+                togarashiBal: getNum('togarashiBal'),
+
+                coleslawPrev: getNum('coleslawPrev'),
                 coleslawNew: getNum('coleslawNew'),
-                coleslawBalance: getNum('coleslawBalance'),
+                coleslawPromo: getNum('coleslawPromo'),
+                coleslawBal: getNum('coleslawBal'),
+
+                ckgTotalSale: calc.ckgTotalSale,
+                tfTotalSale: calc.tfTotalSale,
                 coleslawTotalSale: calc.coleslawTotalSale,
 
                 promo10pcs: getNum('salesPromo10pcs'),
