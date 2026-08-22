@@ -604,830 +604,810 @@
 
     <!-- Script Logic -->
     <script>
-        // 1. FIREBASE CONFIGURATION
-        const firebaseConfig = {
-            apiKey: "AIzaSyD8PVd9v61cAmKoe_RjB2Wc1AswASLIFWo",
-            authDomain: "staffportal-f740f.firebaseapp.com",
-            databaseURL: "https://staffportal-f740f-default-rtdb.firebaseio.com",
-            projectId: "staffportal-f740f",
-            storageBucket: "staffportal-f740f.firebasestorage.app",
-            messagingSenderId: "739455943513",
-            appId: "1:739455943513:web:84850f115af46cafcb8248",
-            measurementId: "G-2BK6WZV8TC"
-        };
-        
-        firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.database();
-        const googleProvider = new firebase.auth.GoogleAuthProvider();
-        
-        const ADMIN_EMAILS = ["hassanhazril@gmail.com"];
-        
-        let presenceData = {};
-        let activeSessionData = null;
-        let attendanceLogs = [];
-        let leaveRequests = [];
-        let salesReports = [];
-        let branchesList = [];
-        
-        let debounceTimer;
-        
-        document.addEventListener('DOMContentLoaded', () => {
-            const addressInput = document.getElementById('branchAddress');
-            const suggestionsList = document.getElementById('addressSuggestions');
-        
-            addressInput.addEventListener('input', () => {
-                clearTimeout(debounceTimer);
-                const query = addressInput.value.trim();
-        
-                if (query.length < 3) {
+// 1. FIREBASE CONFIGURATION
+const firebaseConfig = {
+    apiKey: "AIzaSyD8PVd9v61cAmKoe_RjB2Wc1AswASLIFWo",
+    authDomain: "staffportal-f740f.firebaseapp.com",
+    databaseURL: "https://staffportal-f740f-default-rtdb.firebaseio.com",
+    projectId: "staffportal-f740f",
+    storageBucket: "staffportal-f740f.firebasestorage.app",
+    messagingSenderId: "739455943513",
+    appId: "1:739455943513:web:84850f115af46cafcb8248",
+    measurementId: "G-2BK6WZV8TC"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+const ADMIN_EMAILS = ["hassanhazril@gmail.com"];
+
+let presenceData = {};
+let activeSessionData = null;
+let attendanceLogs = [];
+let leaveRequests = [];
+let salesReports = [];
+let branchesList = [];
+
+let debounceTimer;
+
+document.addEventListener('DOMContentLoaded', () => {
+    const addressInput = document.getElementById('branchAddress');
+    const suggestionsList = document.getElementById('addressSuggestions');
+
+    addressInput.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        const query = addressInput.value.trim();
+
+        if (query.length < 3) {
+            suggestionsList.innerHTML = '';
+            suggestionsList.classList.add('hidden');
+            return;
+        }
+
+        debounceTimer = setTimeout(() => {
+            fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&countrycode=MY`)
+                .then(res => res.json())
+                .then(data => {
                     suggestionsList.innerHTML = '';
-                    suggestionsList.classList.add('hidden');
-                    return;
-                }
-        
-                debounceTimer = setTimeout(() => {
-                    fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&countrycode=MY`)
-                        .then(res => res.json())
-                        .then(data => {
+
+                    if (!data.features || data.features.length === 0) {
+                        suggestionsList.classList.add('hidden');
+                        return;
+                    }
+
+                    data.features.forEach(feature => {
+                        const p = feature.properties;
+                        const addressParts = [p.name, p.street, p.city, p.state, p.country].filter(Boolean);
+                        const formattedAddress = addressParts.join(', ');
+
+                        const li = document.createElement('li');
+                        li.className = 'p-2.5 hover:bg-slate-800 cursor-pointer text-slate-300 hover:text-white transition flex items-center gap-2';
+                        li.innerHTML = `<i class="fa-solid fa-location-dot text-indigo-400 text-[10px]"></i> <span>${formattedAddress}</span>`;
+
+                        li.addEventListener('click', () => {
+                            addressInput.value = formattedAddress;
                             suggestionsList.innerHTML = '';
-        
-                            if (!data.features || data.features.length === 0) {
-                                suggestionsList.classList.add('hidden');
-                                return;
-                            }
-        
-                            data.features.forEach(feature => {
-                                const p = feature.properties;
-                                const addressParts = [p.name, p.street, p.city, p.state, p.country].filter(Boolean);
-                                const formattedAddress = addressParts.join(', ');
-        
-                                const li = document.createElement('li');
-                                li.className = 'p-2.5 hover:bg-slate-800 cursor-pointer text-slate-300 hover:text-white transition flex items-center gap-2';
-                                li.innerHTML = `<i class="fa-solid fa-location-dot text-indigo-400 text-[10px]"></i> <span>${formattedAddress}</span>`;
-        
-                                li.addEventListener('click', () => {
-                                    addressInput.value = formattedAddress;
-                                    suggestionsList.innerHTML = '';
-                                    suggestionsList.classList.add('hidden');
-                                });
-        
-                                suggestionsList.appendChild(li);
-                            });
-        
-                            suggestionsList.classList.remove('hidden');
-                        })
-                        .catch(err => {
-                            console.error('Photon API search error:', err);
                             suggestionsList.classList.add('hidden');
                         });
-                }, 300);
-            });
-        
-            document.addEventListener('click', (e) => {
-                if (!addressInput.contains(e.target) && !suggestionsList.contains(e.target)) {
-                    suggestionsList.classList.add('hidden');
-                }
-            });
-        });
-        
-        function generateAutoBranchCode() {
-            const prefix = "BR-";
-            const nextNum = (branchesList.length + 1).toString().padStart(3, '0');
-            return `${prefix}${nextNum}`;
-        }
-        
-        function showToast(message, type = 'info') {
-            const container = document.getElementById('toastContainer');
-            const toast = document.createElement('div');
-            const bgClass = type === 'error' ? 'bg-rose-950/90 border-rose-800 text-rose-200' : 'bg-slate-900/90 border-indigo-500/30 text-slate-200';
-            const icon = type === 'error' ? 'fa-circle-xmark text-rose-400' : 'fa-circle-check text-indigo-400';
-        
-            toast.className = `px-4 py-3 rounded-xl border backdrop-blur-lg shadow-2xl text-xs font-medium flex items-center gap-3 transition-all duration-300 pointer-events-auto ${bgClass}`;
-            toast.innerHTML = `<i class="fa-solid ${icon} text-sm"></i> <span>${message}</span>`;
-        
-            container.appendChild(toast);
-            setTimeout(() => {
-                toast.classList.add('opacity-0', 'translate-y-2');
-                setTimeout(() => toast.remove(), 300);
-            }, 3500);
-        }
-        
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
-        
-            document.querySelectorAll('.nav-btn').forEach(btn => {
-                btn.classList.remove('text-indigo-400', 'bg-indigo-600/10', 'border', 'border-indigo-500/30');
-                btn.classList.add('text-slate-400');
-            });
-        
-            const activeBtn = document.getElementById(`nav-${tabName}`);
-            activeBtn.classList.remove('text-slate-400');
-            activeBtn.classList.add('text-indigo-400', 'bg-indigo-600/10', 'border', 'border-indigo-500/30');
-        }
-        
-        auth.onAuthStateChanged((user) => {
-            const loginView = document.getElementById('loginView');
-            const portalView = document.getElementById('portalView');
-        
-            if (user) {
-                const userEmail = (user.email || '').toLowerCase();
-                if (!ADMIN_EMAILS.includes(userEmail)) {
-                    auth.signOut().then(() => {
-                        showToast(`Access Denied: ${userEmail} is not authorized for Admin portal.`, 'error');
+
+                        suggestionsList.appendChild(li);
                     });
-                    return;
-                }
-        
-                document.getElementById('adminEmailDisplay').textContent = userEmail;
-                loginView.classList.add('hidden');
-                portalView.classList.remove('hidden');
-        
-                initRealtimeListeners();
-            } else {
-                portalView.classList.add('hidden');
-                loginView.classList.remove('hidden');
-            }
+
+                    suggestionsList.classList.remove('hidden');
+                })
+                .catch(err => {
+                    console.error('Photon API search error:', err);
+                    suggestionsList.classList.add('hidden');
+                });
+        }, 300);
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!addressInput.contains(e.target) && !suggestionsList.contains(e.target)) {
+            suggestionsList.classList.add('hidden');
+        }
+    });
+});
+
+function generateAutoBranchCode() {
+    const prefix = "BR-";
+    const nextNum = (branchesList.length + 1).toString().padStart(3, '0');
+    return `${prefix}${nextNum}`;
+}
+
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    const bgClass = type === 'error' ? 'bg-rose-950/90 border-rose-800 text-rose-200' : 'bg-slate-900/90 border-indigo-500/30 text-slate-200';
+    const icon = type === 'error' ? 'fa-circle-xmark text-rose-400' : 'fa-circle-check text-indigo-400';
+
+    toast.className = `px-4 py-3 rounded-xl border backdrop-blur-lg shadow-2xl text-xs font-medium flex items-center gap-3 transition-all duration-300 pointer-events-auto ${bgClass}`;
+    toast.innerHTML = `<i class="fa-solid ${icon} text-sm"></i> <span>${message}</span>`;
+
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+    }, 3500);
+}
+
+function switchTab(tabName) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+    document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('text-indigo-400', 'bg-indigo-600/10', 'border', 'border-indigo-500/30');
+        btn.classList.add('text-slate-400');
+    });
+
+    const activeBtn = document.getElementById(`nav-${tabName}`);
+    activeBtn.classList.remove('text-slate-400');
+    activeBtn.classList.add('text-indigo-400', 'bg-indigo-600/10', 'border', 'border-indigo-500/30');
+}
+
+auth.onAuthStateChanged((user) => {
+    const loginView = document.getElementById('loginView');
+    const portalView = document.getElementById('portalView');
+
+    if (user) {
+        const userEmail = (user.email || '').toLowerCase();
+        if (!ADMIN_EMAILS.includes(userEmail)) {
+            auth.signOut().then(() => {
+                showToast(`Access Denied: ${userEmail} is not authorized for Admin portal.`, 'error');
+            });
+            return;
+        }
+
+        document.getElementById('adminEmailDisplay').textContent = userEmail;
+        loginView.classList.add('hidden');
+        portalView.classList.remove('hidden');
+
+        initRealtimeListeners();
+    } else {
+        portalView.classList.add('hidden');
+        loginView.classList.remove('hidden');
+    }
+});
+
+function handleGoogleLogin() {
+    auth.signInWithPopup(googleProvider).catch((err) => showToast(err.message, 'error'));
+}
+
+function handleLogout() {
+    auth.signOut().then(() => showToast("Signed out from admin portal."));
+}
+
+function initRealtimeListeners() {
+    db.ref('presence').on('value', (snap) => {
+        presenceData = snap.val() || {};
+        renderPresenceUI();
+    });
+
+    db.ref('active_session').on('value', (snap) => {
+        activeSessionData = snap.val();
+        renderActiveShiftUI();
+    });
+
+    db.ref('branches').on('value', (snap) => {
+        const val = snap.val();
+        branchesList = [];
+        if (val) {
+            Object.keys(val).forEach(key => branchesList.push({ key, ...val[key] }));
+        }
+        renderBranchesUI();
+    });
+
+    db.ref('attendance_logs').on('value', (snap) => {
+        const val = snap.val();
+        attendanceLogs = val ? Object.values(val).reverse() : [];
+        renderAttendanceTable();
+    });
+
+    db.ref('leave_requests').on('value', (snap) => {
+        const val = snap.val();
+        leaveRequests = [];
+        if (val) {
+            Object.keys(val).forEach(key => leaveRequests.push({ key, ...val[key] }));
+            leaveRequests.reverse();
+        }
+        renderLeavesUI();
+    });
+
+    db.ref('sales_updates').on('value', (snap) => {
+        const val = snap.val();
+        salesReports = [];
+        if (val) {
+            Object.keys(val).forEach(key => {
+                salesReports.push({ key, ...val[key] });
+            });
+            salesReports.reverse();
+        }
+        renderSalesUI();
+    });
+}
+
+/* BRANCH MANAGEMENT FUNCTIONS */
+function renderBranchesUI() {
+    const tbody = document.getElementById('branchesTableBody');
+    tbody.innerHTML = '';
+    let activeBranchCount = 0;
+
+    if (branchesList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-slate-500 text-xs">No branches configured yet. Click 'Add New Branch' to create one.</td></tr>`;
+    } else {
+        branchesList.forEach(branch => {
+            const isActive = branch.status === 'ACTIVE';
+            if (isActive) activeBranchCount++;
+
+            const statusBadge = isActive 
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' 
+                : 'bg-rose-500/20 text-rose-400 border-rose-500/40';
+
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-slate-900/50 transition';
+            row.innerHTML = `
+                <td class="p-3">
+                    <span class="font-bold text-slate-200 block">${branch.name || '--'}</span>
+                    <span class="text-[10px] text-indigo-400 font-mono">${branch.code || ''}</span>
+                </td>
+                <td class="p-3 text-slate-400 max-w-xs truncate" title="${branch.address || ''}">${branch.address || '--'}</td>
+                <td class="p-3">
+                    <span class="px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusBadge}">
+                        ${branch.status || 'INACTIVE'}
+                    </span>
+                </td>
+                <td class="p-3 text-right space-x-1">
+                    <button onclick="openBranchModal('${branch.key}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-semibold border border-slate-700">
+                        <i class="fa-solid fa-pen-to-square"></i> Edit
+                    </button>
+                    <button onclick="deleteBranch('${branch.key}')" class="px-2 py-1 rounded bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 text-[10px] font-semibold border border-rose-800/50">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
         });
-        
-        function handleGoogleLogin() {
-            auth.signInWithPopup(googleProvider).catch((err) => showToast(err.message, 'error'));
+    }
+
+    document.getElementById('metricActiveBranches').textContent = activeBranchCount;
+}
+
+function openBranchModal(key = null) {
+    const form = document.getElementById('branchForm');
+    form.reset();
+    document.getElementById('branchKey').value = '';
+    document.getElementById('addressSuggestions').innerHTML = '';
+    document.getElementById('addressSuggestions').classList.add('hidden');
+
+    if (key) {
+        const branch = branchesList.find(b => b.key === key);
+        if (branch) {
+            document.getElementById('branchModalTitle').textContent = 'Edit Branch Location';
+            document.getElementById('branchKey').value = branch.key;
+            document.getElementById('branchCode').value = branch.code || generateAutoBranchCode();
+            document.getElementById('branchName').value = branch.name || '';
+            document.getElementById('branchAddress').value = branch.address || '';
+            document.getElementById('branchStatus').value = branch.status || 'ACTIVE';
         }
-        
-        function handleLogout() {
-            auth.signOut().then(() => showToast("Signed out from admin portal."));
-        }
-        
-        function initRealtimeListeners() {
-            db.ref('presence').on('value', (snap) => {
-                presenceData = snap.val() || {};
-                renderPresenceUI();
-            });
-        
-            db.ref('active_session').on('value', (snap) => {
-                activeSessionData = snap.val();
-                renderActiveShiftUI();
-            });
-        
-            db.ref('branches').on('value', (snap) => {
-                const val = snap.val();
-                branchesList = [];
-                if (val) {
-                    Object.keys(val).forEach(key => branchesList.push({ key, ...val[key] }));
-                }
-                renderBranchesUI();
-            });
-        
-            db.ref('attendance_logs').on('value', (snap) => {
-                const val = snap.val();
-                attendanceLogs = val ? Object.values(val).reverse() : [];
-                renderAttendanceTable();
-            });
-        
-            db.ref('leave_requests').on('value', (snap) => {
-                const val = snap.val();
-                leaveRequests = [];
-                if (val) {
-                    Object.keys(val).forEach(key => leaveRequests.push({ key, ...val[key] }));
-                    leaveRequests.reverse();
-                }
-                renderLeavesUI();
-            });
-        
-            // RECURSIVE SALES LOADER (Fixes Nested Data Paths)
-            db.ref('sales_updates').on('value', (snap) => {
-                const val = snap.val();
-                salesReports = [];
-                if (val) {
-                    function extractReports(node, currentPath = '') {
-                        if (typeof node !== 'object' || node === null) return;
-                        
-                        const isReportNode = node.cawangan !== undefined || node.branch !== undefined || 
-                                             node.bagAyam !== undefined || node.bag_ayam !== undefined || 
-                                             node.submittedBy !== undefined || node.submitted_by !== undefined ||
-                                             node.date !== undefined || node.totalDailySales !== undefined ||
-                                             node.grandTotal !== undefined;
-        
-                        if (isReportNode) {
-                            salesReports.push({ key: currentPath, ...node });
-                        } else {
-                            Object.keys(node).forEach(childKey => {
-                                const path = currentPath ? `${currentPath}/${childKey}` : childKey;
-                                extractReports(node[childKey], path);
-                            });
-                        }
-                    }
-                    extractReports(val);
-                    salesReports.reverse();
-                }
-                renderSalesUI();
-            });
-        }
-        
-        /* BRANCH MANAGEMENT FUNCTIONS */
-        function renderBranchesUI() {
-            const tbody = document.getElementById('branchesTableBody');
-            tbody.innerHTML = '';
-            let activeBranchCount = 0;
-        
-            if (branchesList.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-slate-500 text-xs">No branches configured yet. Click 'Add New Branch' to create one.</td></tr>`;
-            } else {
-                branchesList.forEach(branch => {
-                    const isActive = branch.status === 'ACTIVE';
-                    if (isActive) activeBranchCount++;
-        
-                    const statusBadge = isActive 
-                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' 
-                        : 'bg-rose-500/20 text-rose-400 border-rose-500/40';
-        
-                    const row = document.createElement('tr');
-                    row.className = 'hover:bg-slate-900/50 transition';
-                    row.innerHTML = `
-                        <td class="p-3">
-                            <span class="font-bold text-slate-200 block">${branch.name || '--'}</span>
-                            <span class="text-[10px] text-indigo-400 font-mono">${branch.code || ''}</span>
-                        </td>
-                        <td class="p-3 text-slate-400 max-w-xs truncate" title="${branch.address || ''}">${branch.address || '--'}</td>
-                        <td class="p-3">
-                            <span class="px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusBadge}">
-                                ${branch.status || 'INACTIVE'}
-                            </span>
-                        </td>
-                        <td class="p-3 text-right space-x-1">
-                            <button onclick="openBranchModal('${branch.key}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-semibold border border-slate-700">
-                                <i class="fa-solid fa-pen-to-square"></i> Edit
-                            </button>
-                            <button onclick="deleteBranch('${branch.key}')" class="px-2 py-1 rounded bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 text-[10px] font-semibold border border-rose-800/50">
-                                <i class="fa-solid fa-trash"></i>
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(row);
-                });
+    } else {
+        document.getElementById('branchModalTitle').textContent = 'Add New Branch';
+        document.getElementById('branchCode').value = generateAutoBranchCode();
+    }
+
+    document.getElementById('branchModal').classList.remove('hidden');
+}
+
+function closeBranchModal() {
+    document.getElementById('branchModal').classList.add('hidden');
+}
+
+function handleBranchSubmit(e) {
+    e.preventDefault();
+    const key = document.getElementById('branchKey').value;
+    
+    const payload = {
+        code: document.getElementById('branchCode').value.trim(),
+        name: document.getElementById('branchName').value.trim(),
+        address: document.getElementById('branchAddress').value.trim(),
+        status: document.getElementById('branchStatus').value,
+        updatedAt: Date.now()
+    };
+
+    if (key) {
+        db.ref(`branches/${key}`).update(payload).then(() => {
+            showToast("Branch details updated successfully.");
+            closeBranchModal();
+        }).catch(err => showToast(err.message, 'error'));
+    } else {
+        payload.createdAt = Date.now();
+        db.ref('branches').push(payload).then(() => {
+            showToast("New branch created successfully.");
+            closeBranchModal();
+        }).catch(err => showToast(err.message, 'error'));
+    }
+}
+
+function deleteBranch(key) {
+    if (confirm("Are you sure you want to remove this branch from database?")) {
+        db.ref(`branches/${key}`).remove().then(() => {
+            showToast("Branch removed successfully.");
+        }).catch(err => showToast(err.message, 'error'));
+    }
+}
+
+function renderPresenceUI() {
+    const container = document.getElementById('presenceContainer');
+    container.innerHTML = '';
+    const keys = Object.keys(presenceData);
+    let onlineCount = 0;
+
+    if (keys.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-500 py-4 text-center">No staff presence data available.</p>`;
+    } else {
+        keys.forEach(uid => {
+            const item = presenceData[uid];
+            const isOnline = item.status === 'ONLINE';
+            if (isOnline) onlineCount++;
+
+            const badgeStyle = isOnline 
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' 
+                : 'bg-slate-800 text-slate-400 border-slate-700';
+
+            const row = document.createElement('div');
+            row.className = 'p-3 bg-slate-950/60 border border-slate-800 rounded-xl flex items-center justify-between text-xs';
+            row.innerHTML = `
+                <div>
+                    <span class="text-slate-200 font-semibold block">${item.email || 'Staff Member'}</span>
+                    <span class="text-[10px] text-slate-500">Last seen: ${item.lastSeen ? new Date(item.lastSeen).toLocaleTimeString() : 'N/A'}</span>
+                </div>
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase tracking-wider ${badgeStyle}">
+                    ${item.status || 'OFFLINE'}
+                </span>
+            `;
+            container.appendChild(row);
+        });
+    }
+
+    document.getElementById('metricOnlineCount').textContent = onlineCount;
+}
+
+function renderActiveShiftUI() {
+    const container = document.getElementById('activeShiftContainer');
+    if (!container) return;
+
+    if (activeSessionData && activeSessionData.clockInTime) {
+        document.getElementById('metricActiveShifts').textContent = "1";
+        const startTime = new Date(activeSessionData.clockInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        container.innerHTML = `
+            <div class="p-4 bg-indigo-950/30 border border-indigo-500/30 rounded-2xl text-xs space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="font-bold text-white text-sm">${activeSessionData.empName || 'Staff'}</span>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-lime-500/20 text-lime-400 border border-lime-500/40 animate-pulse">ON DUTY</span>
+                </div>
+                <p class="text-slate-400">Email: <span class="text-slate-200">${activeSessionData.userEmail || '--'}</span></p>
+                <p class="text-slate-400">Clocked In At: <span class="text-slate-200 font-mono">${startTime}</span></p>
+                <p class="text-slate-400">Punctuality: <span class="text-emerald-400 font-semibold">${activeSessionData.punctualityStatus || 'ON TIME'}</span></p>
+            </div>
+        `;
+    } else {
+        document.getElementById('metricActiveShifts').textContent = "0";
+        container.innerHTML = `<p class="text-xs text-slate-500 py-4 text-center">No active shift currently in progress.</p>`;
+    }
+}
+
+function renderAttendanceTable() {
+    const tbody = document.getElementById('attendanceLogsTableBody');
+    const search = (document.getElementById('attendanceSearch')?.value || '').toLowerCase();
+    tbody.innerHTML = '';
+
+    const filtered = attendanceLogs.filter(log => {
+        const name = (log.empName || '').toLowerCase();
+        const email = (log.userEmail || '').toLowerCase();
+        const id = (log.empId || '').toLowerCase();
+        return name.includes(search) || email.includes(search) || id.includes(search);
+    });
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500 text-xs">No matching attendance logs found.</td></tr>`;
+        return;
+    }
+
+    filtered.forEach(log => {
+        const isAbsent = log.punctualityStatus === 'ABSENT' || log.statusColor === 'red';
+        const badgeClass = isAbsent ? 'bg-rose-500/20 text-rose-400 border-rose-500/40' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
+
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-slate-900/50 transition';
+        row.innerHTML = `
+            <td class="p-3 text-slate-300 font-mono text-[11px]">${log.date || '--'}</td>
+            <td class="p-3">
+                <span class="font-semibold text-slate-200 block">${log.empName || 'Staff'}</span>
+                <span class="text-[10px] text-slate-500">${log.userEmail || ''}</span>
+            </td>
+            <td class="p-3 font-mono text-slate-300">${log.clockIn || '--'}</td>
+            <td class="p-3 font-mono text-slate-300">${log.clockOut || '--'}</td>
+            <td class="p-3 text-slate-400">${log.durationText || '--'}</td>
+            <td class="p-3">
+                <span class="px-2 py-0.5 rounded-full text-[9px] font-bold border ${badgeClass}">
+                    ${log.punctualityStatus || 'ON TIME'}
+                </span>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function renderLeavesUI() {
+    const tbody = document.getElementById('leaveRequestsTableBody');
+    const pendingBadge = document.getElementById('pendingLeaveBadge');
+    tbody.innerHTML = '';
+    let pendingCount = 0;
+
+    if (leaveRequests.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="p-4 text-center text-slate-500 text-xs">No leave requests submitted yet.</td></tr>`;
+    } else {
+        leaveRequests.forEach(req => {
+            if (req.status === 'PENDING') pendingCount++;
+
+            let statusBadge = 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+            if (req.status === 'APPROVED') statusBadge = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
+            if (req.status === 'REJECTED') statusBadge = 'bg-rose-500/20 text-rose-400 border-rose-500/40';
+
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-slate-900/50 transition';
+            row.innerHTML = `
+                <td class="p-3 text-slate-400 text-[11px]">${req.appliedAt ? new Date(req.appliedAt).toLocaleDateString() : '--'}</td>
+                <td class="p-3">
+                    <span class="font-semibold text-slate-200 block">${req.empName || 'Staff'}</span>
+                    <span class="text-[10px] text-slate-500">${req.userEmail || ''}</span>
+                </td>
+                <td class="p-3 text-indigo-400 font-semibold uppercase text-[10px]">${req.leaveType || 'Leave'}</td>
+                <td class="p-3 font-mono text-[11px] text-slate-300">${req.startDate} to ${req.endDate}</td>
+                <td class="p-3 text-slate-300 max-w-xs truncate" title="${req.reason || ''}">${req.reason || '--'}</td>
+                <td class="p-3">
+                    ${req.hasAttachment && req.mcBase64 ? `
+                        <button onclick="viewAttachment('${req.key}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-indigo-400 text-[10px] font-semibold border border-slate-700">
+                            <i class="fa-solid fa-paperclip"></i> View File
+                        </button>
+                    ` : '<span class="text-slate-600 text-[10px]">None</span>'}
+                </td>
+                <td class="p-3">
+                    <span class="px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase ${statusBadge}">
+                        ${req.status || 'PENDING'}
+                    </span>
+                </td>
+                <td class="p-3 text-right space-x-1">
+                    ${req.status === 'PENDING' ? `
+                        <button onclick="updateLeaveStatus('${req.key}', 'APPROVED')" class="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold shadow">Approve</button>
+                        <button onclick="updateLeaveStatus('${req.key}', 'REJECTED')" class="px-2 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold shadow">Reject</button>
+                    ` : '<span class="text-slate-600 text-[10px]">Decided</span>'}
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    document.getElementById('metricPendingLeaves').textContent = pendingCount;
+    if (pendingCount > 0) {
+        pendingBadge.textContent = pendingCount;
+        pendingBadge.classList.remove('hidden');
+    } else {
+        pendingBadge.classList.add('hidden');
+    }
+}
+
+function updateLeaveStatus(key, status) {
+    db.ref(`leave_requests/${key}/status`).set(status).then(() => {
+        showToast(`Leave request updated to ${status}.`);
+    }).catch(err => showToast(err.message, 'error'));
+}
+
+function viewAttachment(key) {
+    const req = leaveRequests.find(r => r.key === key);
+    if (!req || !req.mcBase64) return;
+
+    const modal = document.getElementById('attachmentModal');
+    const viewer = document.getElementById('attachmentViewer');
+    document.getElementById('attachmentModalTitle').textContent = `Attachment: ${req.mcFileName || 'Document'}`;
+
+    if (req.mcBase64.startsWith('data:image/')) {
+        viewer.innerHTML = `<img src="${req.mcBase64}" class="max-w-full h-auto rounded-lg shadow-lg">`;
+    } else if (req.mcBase64.startsWith('data:application/pdf')) {
+        viewer.innerHTML = `<iframe src="${req.mcBase64}" class="w-full h-[60vh] rounded-lg"></iframe>`;
+    } else {
+        viewer.innerHTML = `<a href="${req.mcBase64}" download="${req.mcFileName || 'attachment'}" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">Download Attachment</a>`;
+    }
+
+    modal.classList.remove('hidden');
+}
+
+function closeAttachmentModal() {
+    document.getElementById('attachmentModal').classList.add('hidden');
+}
+
+/* ==================== ADVANCED SALES & INVENTORY FORMULA LOGIC ==================== */
+
+function getNum(elementId) {
+    const val = parseFloat(document.getElementById(elementId)?.value || 0);
+    return isNaN(val) ? 0 : val;
+}
+
+function calculateItemSold(prevId, newId, promoId, balId) {
+    const p = getNum(prevId);
+    const n = getNum(newId);
+    const pr = getNum(promoId);
+    const b = getNum(balId);
+    return Math.max(0, (p + n) - (pr + b));
+}
+
+function recalculateSales() {
+    const bagAyam = getNum('salesBagAyam');
+    const totalAyamPcs = bagAyam * 20;
+    const ayamSales = totalAyamPcs * 4.50;
+
+    const misi = getNum('salesMisi');
+    const lalamove = getNum('salesLalamove');
+    const foodPanda = getNum('salesFoodPanda');
+    const grabFood = getNum('salesGrabFood');
+    const shopeeFood = getNum('salesShopeeFood');
+    const platformSales = misi + lalamove + foodPanda + grabFood + shopeeFood;
+
+    const cheeseSold = calculateItemSold('cheesePrev', 'cheeseNew', 'cheesePromo', 'cheeseBal');
+    document.getElementById('cheeseSold').value = cheeseSold;
+
+    const koreanSold = calculateItemSold('koreanPrev', 'koreanNew', 'koreanPromo', 'koreanBal');
+    document.getElementById('koreanSold').value = koreanSold;
+
+    const garlicSold = calculateItemSold('garlicPrev', 'garlicNew', 'garlicPromo', 'garlicBal');
+    document.getElementById('garlicSold').value = garlicSold;
+
+    const ckgTotalSale = (cheeseSold + koreanSold + garlicSold) * 2.00;
+
+    const furikakeSold = calculateItemSold('furikakePrev', 'furikakeNew', 'furikakePromo', 'furikakeBal');
+    document.getElementById('furikakeSold').value = furikakeSold;
+
+    const togarashiSold = calculateItemSold('togarashiPrev', 'togarashiNew', 'togarashiPromo', 'togarashiBal');
+    document.getElementById('togarashiSold').value = togarashiSold;
+
+    const tfTotalSale = (furikakeSold + togarashiSold) * 3.00;
+
+    const coleslawSold = calculateItemSold('coleslawPrev', 'coleslawNew', 'coleslawPromo', 'coleslawBal');
+    document.getElementById('coleslawSold').value = coleslawSold;
+
+    const coleslawPairs = Math.floor(coleslawSold / 2);
+    const coleslawRem = coleslawSold % 2;
+    const coleslawTotalSale = (coleslawPairs * 6.50) + (coleslawRem * 3.50);
+
+    const promo10pcsQty = getNum('salesPromo10pcs');
+    const promo10pcsTotal = promo10pcsQty * 53.90;
+
+    const gas = getNum('salesGas');
+    const ais = getNum('salesAis');
+    const beliBarang = getNum('salesBeliBarang');
+    const minyakKenderaan = getNum('salesMinyakKenderaan');
+    const dobi = getNum('salesDobi');
+    const minyakMasakPacks = getNum('salesMinyakMasak');
+    const minyakMasakDeduction = minyakMasakPacks * 5.00;
+
+    const staffMealPcs = getNum('salesStaffMeal');
+    const ayamTakHabisPcs = getNum('salesAyamTakHabis');
+    const ayamBusukPcs = getNum('salesAyamBusuk');
+    const ayamShortPcs = getNum('salesAyamShort');
+    const reviewPcs = getNum('salesReview');
+    const loyalKad = getNum('salesLoyalKad');
+
+    const chickenLossDeduction = (staffMealPcs + ayamTakHabisPcs + ayamBusukPcs + ayamShortPcs + reviewPcs) * 4.50;
+    const totalDeductions = gas + ais + beliBarang + minyakKenderaan + dobi + minyakMasakDeduction + chickenLossDeduction + loyalKad;
+
+    const grandTotal = (ayamSales + platformSales) - totalDeductions + ckgTotalSale + tfTotalSale + coleslawTotalSale + promo10pcsTotal;
+
+    document.getElementById('dispAyamSales').textContent = `RM ${ayamSales.toFixed(2)}`;
+    document.getElementById('dispPlatformSales').textContent = `RM ${platformSales.toFixed(2)}`;
+    document.getElementById('dispFlavorSales').textContent = `RM ${(ckgTotalSale + tfTotalSale + coleslawTotalSale).toFixed(2)}`;
+    document.getElementById('dispPromoSales').textContent = `RM ${promo10pcsTotal.toFixed(2)}`;
+    document.getElementById('dispTotalDeductions').textContent = `- RM ${totalDeductions.toFixed(2)}`;
+    document.getElementById('grandTotalDisplay').textContent = `RM ${grandTotal.toFixed(2)}`;
+
+    return {
+        ayamSales, platformSales, ckgTotalSale, tfTotalSale, coleslawTotalSale,
+        promo10pcsTotal, totalDeductions, grandTotal
+    };
+}
+
+function renderSalesUI() {
+    const tbody = document.getElementById('salesReportTableBody');
+    tbody.innerHTML = '';
+
+    if (salesReports.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500 text-xs">No sales reports submitted.</td></tr>`;
+    } else {
+        salesReports.forEach(report => {
+            const cawangan = report.cawangan || report.branch || 'Branch';
+            const date = report.date || '--';
+            const submittedBy = report.submittedBy || 'Staff';
+            const bagAyam = report.jumlahBag ?? report.bagAyam ?? 0;
+            const salesCash = report.salesCash ?? 0;
+            const grandTotal = report.totalDailySales ?? 0;
+
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-slate-900/50 transition';
+            row.innerHTML = `
+                <td class="p-3">
+                    <span class="font-bold text-slate-200 block">${cawangan}</span>
+                    <span class="text-[10px] text-slate-500 font-mono">${date}</span>
+                </td>
+                <td class="p-3 text-slate-300">${submittedBy}</td>
+                <td class="p-3 font-mono text-amber-300 font-semibold">${bagAyam} bags</td>
+                <td class="p-3 font-mono text-slate-300">RM ${parseFloat(salesCash).toFixed(2)}</td>
+                <td class="p-3 font-mono text-emerald-400 font-bold">RM ${parseFloat(grandTotal).toFixed(2)}</td>
+                <td class="p-3 text-right space-x-1">
+                    <button onclick="openSalesModal('${report.key}')" class="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-400 text-[10px] font-semibold border border-slate-700 transition">
+                        <i class="fa-solid fa-pen-to-square"></i> Edit
+                    </button>
+                    <button onclick="alert('Catatan: ${report.catatan || 'None'}')" class="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] border border-slate-700 transition">
+                        <i class="fa-solid fa-file-lines"></i> Notes
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+}
+
+function openSalesModal(key) {
+    const report = salesReports.find(r => r.key === key);
+    if (!report) return;
+
+    // Helper safely extracts numbers handling string numbers or empty strings
+    const parseNum = (val) => {
+        const n = parseFloat(val);
+        return isNaN(n) ? 0 : n;
+    };
+
+    const exp = report.expenses || {};
+    const inv = report.inventoryTracker || {};
+    const plat = report.platforms || {};
+    const qw = report.qualityAndWastage || {};
+
+    // Base Meta
+    document.getElementById('salesKey').value = report.key;
+    document.getElementById('salesCawangan').value = report.cawangan || '';
+    document.getElementById('salesDate').value = report.date || '';
+    document.getElementById('salesSubmittedBy').value = report.submittedBy || '';
+    document.getElementById('salesBagAyam').value = parseNum(report.jumlahBag ?? report.bagAyam);
+
+    // Platforms
+    document.getElementById('salesMisi').value = parseNum(plat.misi);
+    document.getElementById('salesLalamove').value = parseNum(plat.lalamove);
+    document.getElementById('salesFoodPanda').value = parseNum(plat.foodPanda);
+    document.getElementById('salesGrabFood').value = parseNum(plat.grabFood);
+    document.getElementById('salesShopeeFood').value = parseNum(plat.shopeeFood);
+
+    // Inventory Helper for Flavor mapping
+    const setInventoryFlavor = (prefix, flavorObj) => {
+        const f = flavorObj || {};
+        document.getElementById(`${prefix}Prev`).value = parseNum(f.prevStock);
+        document.getElementById(`${prefix}New`).value = parseNum(f.newStock);
+        document.getElementById(`${prefix}Promo`).value = parseNum(f.promoFree);
+        document.getElementById(`${prefix}Bal`).value = parseNum(f.balance);
+    };
+
+    setInventoryFlavor('cheese', inv.Cheese);
+    setInventoryFlavor('korean', inv.Korean);
+    setInventoryFlavor('garlic', inv.Garlic);
+    setInventoryFlavor('furikake', inv.Furikake);
+    setInventoryFlavor('togarashi', inv.Togarashi);
+    setInventoryFlavor('coleslaw', inv.Coleslaw);
+
+    // Quality & Wastage
+    document.getElementById('salesPromo10pcs').value = parseNum(qw.promo10Pcs ?? qw.promo10pcs);
+    document.getElementById('salesAyamTakHabis').value = parseNum(qw.ayamTakHabis);
+    document.getElementById('salesAyamBusuk').value = parseNum(qw.ayamBusuk);
+    document.getElementById('salesAyamShort').value = parseNum(qw.ayamShort);
+    document.getElementById('salesReview').value = parseNum(qw.review);
+    document.getElementById('salesLoyalKad').value = parseNum(qw.loyalKad);
+
+    // Expenses
+    document.getElementById('salesMinyakMasak').value = parseNum(exp.minyakMasak);
+    document.getElementById('salesStaffMeal').value = parseNum(exp.staffMeal);
+    document.getElementById('salesGas').value = parseNum(exp.gas);
+    document.getElementById('salesAis').value = parseNum(exp.ais);
+    document.getElementById('salesBeliBarang').value = parseNum(exp.beliBarang);
+    document.getElementById('salesMinyakKenderaan').value = parseNum(exp.minyakKenderaan);
+    document.getElementById('salesDobi').value = parseNum(exp.dobi);
+
+    // Cash & Remarks
+    document.getElementById('salesCash').value = parseNum(report.salesCash);
+    document.getElementById('salesCatatan').value = report.catatan || '';
+
+    recalculateSales();
+    document.getElementById('salesModal').classList.remove('hidden');
+}
+
+function closeSalesModal() {
+    document.getElementById('salesModal').classList.add('hidden');
+}
+
+function handleSalesSubmit(e) {
+    e.preventDefault();
+    const key = document.getElementById('salesKey').value;
+    if (!key) return;
+
+    const calc = recalculateSales();
+
+    const updatedData = {
+        cawangan: document.getElementById('salesCawangan').value.trim(),
+        date: document.getElementById('salesDate').value.trim(),
+        submittedBy: document.getElementById('salesSubmittedBy').value.trim(),
+        jumlahBag: getNum('salesBagAyam').toString(),
+        salesCash: getNum('salesCash'),
+        catatan: document.getElementById('salesCatatan').value.trim(),
+        totalDailySales: calc.grandTotal,
+        updatedAt: Date.now(),
+
+        platforms: {
+            misi: getNum('salesMisi'),
+            lalamove: getNum('salesLalamove'),
+            foodPanda: getNum('salesFoodPanda'),
+            grabFood: getNum('salesGrabFood'),
+            shopeeFood: getNum('salesShopeeFood')
+        },
+
+        inventoryTracker: {
+            Cheese: {
+                prevStock: getNum('cheesePrev'),
+                newStock: getNum('cheeseNew'),
+                promoFree: getNum('cheesePromo'),
+                balance: getNum('cheeseBal'),
+                sold: getNum('cheeseSold')
+            },
+            Korean: {
+                prevStock: getNum('koreanPrev'),
+                newStock: getNum('koreanNew'),
+                promoFree: getNum('koreanPromo'),
+                balance: getNum('koreanBal'),
+                sold: getNum('koreanSold')
+            },
+            Garlic: {
+                prevStock: getNum('garlicPrev'),
+                newStock: getNum('garlicNew'),
+                promoFree: getNum('garlicPromo'),
+                balance: getNum('garlicBal'),
+                sold: getNum('garlicSold')
+            },
+            Furikake: {
+                prevStock: getNum('furikakePrev'),
+                newStock: getNum('furikakeNew'),
+                promoFree: getNum('furikakePromo'),
+                balance: getNum('furikakeBal'),
+                sold: getNum('furikakeSold')
+            },
+            Togarashi: {
+                prevStock: getNum('togarashiPrev'),
+                newStock: getNum('togarashiNew'),
+                promoFree: getNum('togarashiPromo'),
+                balance: getNum('togarashiBal'),
+                sold: getNum('togarashiSold')
+            },
+            Coleslaw: {
+                prevStock: getNum('coleslawPrev'),
+                newStock: getNum('coleslawNew'),
+                promoFree: getNum('coleslawPromo'),
+                balance: getNum('coleslawBal'),
+                sold: getNum('coleslawSold')
             }
-        
-            document.getElementById('metricActiveBranches').textContent = activeBranchCount;
+        },
+
+        qualityAndWastage: {
+            promo10Pcs: getNum('salesPromo10pcs').toString(),
+            ayamTakHabis: getNum('salesAyamTakHabis').toString(),
+            ayamBusuk: getNum('salesAyamBusuk').toString(),
+            ayamShort: getNum('salesAyamShort').toString(),
+            review: getNum('salesReview').toString(),
+            loyalKad: getNum('salesLoyalKad').toString()
+        },
+
+        expenses: {
+            minyakMasak: getNum('salesMinyakMasak').toString(),
+            staffMeal: getNum('salesStaffMeal').toString(),
+            gas: getNum('salesGas'),
+            ais: getNum('salesAis'),
+            beliBarang: getNum('salesBeliBarang'),
+            minyakKenderaan: getNum('salesMinyakKenderaan'),
+            dobi: getNum('salesDobi')
         }
-        
-        function openBranchModal(key = null) {
-            const form = document.getElementById('branchForm');
-            form.reset();
-            document.getElementById('branchKey').value = '';
-            document.getElementById('addressSuggestions').innerHTML = '';
-            document.getElementById('addressSuggestions').classList.add('hidden');
-        
-            if (key) {
-                const branch = branchesList.find(b => b.key === key);
-                if (branch) {
-                    document.getElementById('branchModalTitle').textContent = 'Edit Branch Location';
-                    document.getElementById('branchKey').value = branch.key;
-                    document.getElementById('branchCode').value = branch.code || generateAutoBranchCode();
-                    document.getElementById('branchName').value = branch.name || '';
-                    document.getElementById('branchAddress').value = branch.address || '';
-                    document.getElementById('branchStatus').value = branch.status || 'ACTIVE';
-                }
-            } else {
-                document.getElementById('branchModalTitle').textContent = 'Add New Branch';
-                document.getElementById('branchCode').value = generateAutoBranchCode();
-            }
-        
-            document.getElementById('branchModal').classList.remove('hidden');
-        }
-        
-        function closeBranchModal() {
-            document.getElementById('branchModal').classList.add('hidden');
-        }
-        
-        function handleBranchSubmit(e) {
-            e.preventDefault();
-            const key = document.getElementById('branchKey').value;
-            
-            const payload = {
-                code: document.getElementById('branchCode').value.trim(),
-                name: document.getElementById('branchName').value.trim(),
-                address: document.getElementById('branchAddress').value.trim(),
-                status: document.getElementById('branchStatus').value,
-                updatedAt: Date.now()
-            };
-        
-            if (key) {
-                db.ref(`branches/${key}`).update(payload).then(() => {
-                    showToast("Branch details updated successfully.");
-                    closeBranchModal();
-                }).catch(err => showToast(err.message, 'error'));
-            } else {
-                payload.createdAt = Date.now();
-                db.ref('branches').push(payload).then(() => {
-                    showToast("New branch created successfully.");
-                    closeBranchModal();
-                }).catch(err => showToast(err.message, 'error'));
-            }
-        }
-        
-        function deleteBranch(key) {
-            if (confirm("Are you sure you want to remove this branch from database?")) {
-                db.ref(`branches/${key}`).remove().then(() => {
-                    showToast("Branch removed successfully.");
-                }).catch(err => showToast(err.message, 'error'));
-            }
-        }
-        
-        function renderPresenceUI() {
-            const container = document.getElementById('presenceContainer');
-            container.innerHTML = '';
-            const keys = Object.keys(presenceData);
-            let onlineCount = 0;
-        
-            if (keys.length === 0) {
-                container.innerHTML = `<p class="text-xs text-slate-500 py-4 text-center">No staff presence data available.</p>`;
-            } else {
-                keys.forEach(uid => {
-                    const item = presenceData[uid];
-                    const isOnline = item.status === 'ONLINE';
-                    if (isOnline) onlineCount++;
-        
-                    const badgeStyle = isOnline 
-                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' 
-                        : 'bg-slate-800 text-slate-400 border-slate-700';
-        
-                    const row = document.createElement('div');
-                    row.className = 'p-3 bg-slate-950/60 border border-slate-800 rounded-xl flex items-center justify-between text-xs';
-                    row.innerHTML = `
-                        <div>
-                            <span class="text-slate-200 font-semibold block">${item.email || 'Staff Member'}</span>
-                            <span class="text-[10px] text-slate-500">Last seen: ${item.lastSeen ? new Date(item.lastSeen).toLocaleTimeString() : 'N/A'}</span>
-                        </div>
-                        <span class="px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase tracking-wider ${badgeStyle}">
-                            ${item.status || 'OFFLINE'}
-                        </span>
-                    `;
-                    container.appendChild(row);
-                });
-            }
-        
-            document.getElementById('metricOnlineCount').textContent = onlineCount;
-        }
-        
-        function renderActiveShiftUI() {
-            const container = document.getElementById('activeShiftContainer');
-            if (!container) return;
-        
-            if (activeSessionData && activeSessionData.clockInTime) {
-                document.getElementById('metricActiveShifts').textContent = "1";
-                const startTime = new Date(activeSessionData.clockInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        
-                container.innerHTML = `
-                    <div class="p-4 bg-indigo-950/30 border border-indigo-500/30 rounded-2xl text-xs space-y-2">
-                        <div class="flex items-center justify-between">
-                            <span class="font-bold text-white text-sm">${activeSessionData.empName || 'Staff'}</span>
-                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-lime-500/20 text-lime-400 border border-lime-500/40 animate-pulse">ON DUTY</span>
-                        </div>
-                        <p class="text-slate-400">Email: <span class="text-slate-200">${activeSessionData.userEmail || '--'}</span></p>
-                        <p class="text-slate-400">Clocked In At: <span class="text-slate-200 font-mono">${startTime}</span></p>
-                        <p class="text-slate-400">Punctuality: <span class="text-emerald-400 font-semibold">${activeSessionData.punctualityStatus || 'ON TIME'}</span></p>
-                    </div>
-                `;
-            } else {
-                document.getElementById('metricActiveShifts').textContent = "0";
-                container.innerHTML = `<p class="text-xs text-slate-500 py-4 text-center">No active shift currently in progress.</p>`;
-            }
-        }
-        
-        function renderAttendanceTable() {
-            const tbody = document.getElementById('attendanceLogsTableBody');
-            const search = (document.getElementById('attendanceSearch')?.value || '').toLowerCase();
-            tbody.innerHTML = '';
-        
-            const filtered = attendanceLogs.filter(log => {
-                const name = (log.empName || '').toLowerCase();
-                const email = (log.userEmail || '').toLowerCase();
-                const id = (log.empId || '').toLowerCase();
-                return name.includes(search) || email.includes(search) || id.includes(search);
-            });
-        
-            if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500 text-xs">No matching attendance logs found.</td></tr>`;
-                return;
-            }
-        
-            filtered.forEach(log => {
-                const isAbsent = log.punctualityStatus === 'ABSENT' || log.statusColor === 'red';
-                const badgeClass = isAbsent ? 'bg-rose-500/20 text-rose-400 border-rose-500/40' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
-        
-                const row = document.createElement('tr');
-                row.className = 'hover:bg-slate-900/50 transition';
-                row.innerHTML = `
-                    <td class="p-3 text-slate-300 font-mono text-[11px]">${log.date || '--'}</td>
-                    <td class="p-3">
-                        <span class="font-semibold text-slate-200 block">${log.empName || 'Staff'}</span>
-                        <span class="text-[10px] text-slate-500">${log.userEmail || ''}</span>
-                    </td>
-                    <td class="p-3 font-mono text-slate-300">${log.clockIn || '--'}</td>
-                    <td class="p-3 font-mono text-slate-300">${log.clockOut || '--'}</td>
-                    <td class="p-3 text-slate-400">${log.durationText || '--'}</td>
-                    <td class="p-3">
-                        <span class="px-2 py-0.5 rounded-full text-[9px] font-bold border ${badgeClass}">
-                            ${log.punctualityStatus || 'ON TIME'}
-                        </span>
-                    </td>
-                `;
-                tbody.appendChild(row);
-            });
-        }
-        
-        function renderLeavesUI() {
-            const tbody = document.getElementById('leaveRequestsTableBody');
-            const pendingBadge = document.getElementById('pendingLeaveBadge');
-            tbody.innerHTML = '';
-            let pendingCount = 0;
-        
-            if (leaveRequests.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="8" class="p-4 text-center text-slate-500 text-xs">No leave requests submitted yet.</td></tr>`;
-            } else {
-                leaveRequests.forEach(req => {
-                    if (req.status === 'PENDING') pendingCount++;
-        
-                    let statusBadge = 'bg-amber-500/20 text-amber-400 border-amber-500/40';
-                    if (req.status === 'APPROVED') statusBadge = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
-                    if (req.status === 'REJECTED') statusBadge = 'bg-rose-500/20 text-rose-400 border-rose-500/40';
-        
-                    const row = document.createElement('tr');
-                    row.className = 'hover:bg-slate-900/50 transition';
-                    row.innerHTML = `
-                        <td class="p-3 text-slate-400 text-[11px]">${req.appliedAt ? new Date(req.appliedAt).toLocaleDateString() : '--'}</td>
-                        <td class="p-3">
-                            <span class="font-semibold text-slate-200 block">${req.empName || 'Staff'}</span>
-                            <span class="text-[10px] text-slate-500">${req.userEmail || ''}</span>
-                        </td>
-                        <td class="p-3 text-indigo-400 font-semibold uppercase text-[10px]">${req.leaveType || 'Leave'}</td>
-                        <td class="p-3 font-mono text-[11px] text-slate-300">${req.startDate} to ${req.endDate}</td>
-                        <td class="p-3 text-slate-300 max-w-xs truncate" title="${req.reason || ''}">${req.reason || '--'}</td>
-                        <td class="p-3">
-                            ${req.hasAttachment && req.mcBase64 ? `
-                                <button onclick="viewAttachment('${req.key}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-indigo-400 text-[10px] font-semibold border border-slate-700">
-                                    <i class="fa-solid fa-paperclip"></i> View File
-                                </button>
-                            ` : '<span class="text-slate-600 text-[10px]">None</span>'}
-                        </td>
-                        <td class="p-3">
-                            <span class="px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase ${statusBadge}">
-                                ${req.status || 'PENDING'}
-                            </span>
-                        </td>
-                        <td class="p-3 text-right space-x-1">
-                            ${req.status === 'PENDING' ? `
-                                <button onclick="updateLeaveStatus('${req.key}', 'APPROVED')" class="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold shadow">Approve</button>
-                                <button onclick="updateLeaveStatus('${req.key}', 'REJECTED')" class="px-2 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold shadow">Reject</button>
-                            ` : '<span class="text-slate-600 text-[10px]">Decided</span>'}
-                        </td>
-                    `;
-                    tbody.appendChild(row);
-                });
-            }
-        
-            document.getElementById('metricPendingLeaves').textContent = pendingCount;
-            if (pendingCount > 0) {
-                pendingBadge.textContent = pendingCount;
-                pendingBadge.classList.remove('hidden');
-            } else {
-                pendingBadge.classList.add('hidden');
-            }
-        }
-        
-        function updateLeaveStatus(key, status) {
-            db.ref(`leave_requests/${key}/status`).set(status).then(() => {
-                showToast(`Leave request updated to ${status}.`);
-            }).catch(err => showToast(err.message, 'error'));
-        }
-        
-        function viewAttachment(key) {
-            const req = leaveRequests.find(r => r.key === key);
-            if (!req || !req.mcBase64) return;
-        
-            const modal = document.getElementById('attachmentModal');
-            const viewer = document.getElementById('attachmentViewer');
-            document.getElementById('attachmentModalTitle').textContent = `Attachment: ${req.mcFileName || 'Document'}`;
-        
-            if (req.mcBase64.startsWith('data:image/')) {
-                viewer.innerHTML = `<img src="${req.mcBase64}" class="max-w-full h-auto rounded-lg shadow-lg">`;
-            } else if (req.mcBase64.startsWith('data:application/pdf')) {
-                viewer.innerHTML = `<iframe src="${req.mcBase64}" class="w-full h-[60vh] rounded-lg"></iframe>`;
-            } else {
-                viewer.innerHTML = `<a href="${req.mcBase64}" download="${req.mcFileName || 'attachment'}" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">Download Attachment</a>`;
-            }
-        
-            modal.classList.remove('hidden');
-        }
-        
-        function closeAttachmentModal() {
-            document.getElementById('attachmentModal').classList.add('hidden');
-        }
-        
-        /* ==================== ADVANCED SALES & INVENTORY FORMULA LOGIC ==================== */
-        
-        function getNum(elementId) {
-            const val = parseFloat(document.getElementById(elementId)?.value || 0);
-            return isNaN(val) ? 0 : val;
-        }
-        
-        function calculateItemSold(prevId, newId, promoId, balId) {
-            const p = getNum(prevId);
-            const n = getNum(newId);
-            const pr = getNum(promoId);
-            const b = getNum(balId);
-            return Math.max(0, (p + n) - (pr + b));
-        }
-        
-        function recalculateSales() {
-            const bagAyam = getNum('salesBagAyam');
-            const totalAyamPcs = bagAyam * 20;
-            const ayamSales = totalAyamPcs * 4.50;
-        
-            const misi = getNum('salesMisi');
-            const lalamove = getNum('salesLalamove');
-            const foodPanda = getNum('salesFoodPanda');
-            const grabFood = getNum('salesGrabFood');
-            const shopeeFood = getNum('salesShopeeFood');
-            const platformSales = misi + lalamove + foodPanda + grabFood + shopeeFood;
-        
-            const cheeseSold = calculateItemSold('cheesePrev', 'cheeseNew', 'cheesePromo', 'cheeseBal');
-            document.getElementById('cheeseSold').value = cheeseSold;
-        
-            const koreanSold = calculateItemSold('koreanPrev', 'koreanNew', 'koreanPromo', 'koreanBal');
-            document.getElementById('koreanSold').value = koreanSold;
-        
-            const garlicSold = calculateItemSold('garlicPrev', 'garlicNew', 'garlicPromo', 'garlicBal');
-            document.getElementById('garlicSold').value = garlicSold;
-        
-            const ckgTotalSale = (cheeseSold + koreanSold + garlicSold) * 2.00;
-        
-            const furikakeSold = calculateItemSold('furikakePrev', 'furikakeNew', 'furikakePromo', 'furikakeBal');
-            document.getElementById('furikakeSold').value = furikakeSold;
-        
-            const togarashiSold = calculateItemSold('togarashiPrev', 'togarashiNew', 'togarashiPromo', 'togarashiBal');
-            document.getElementById('togarashiSold').value = togarashiSold;
-        
-            const tfTotalSale = (furikakeSold + togarashiSold) * 3.00;
-        
-            const coleslawSold = calculateItemSold('coleslawPrev', 'coleslawNew', 'coleslawPromo', 'coleslawBal');
-            document.getElementById('coleslawSold').value = coleslawSold;
-        
-            const coleslawPairs = Math.floor(coleslawSold / 2);
-            const coleslawRem = coleslawSold % 2;
-            const coleslawTotalSale = (coleslawPairs * 6.50) + (coleslawRem * 3.50);
-        
-            const promo10pcsQty = getNum('salesPromo10pcs');
-            const promo10pcsTotal = promo10pcsQty * 53.90;
-        
-            const gas = getNum('salesGas');
-            const ais = getNum('salesAis');
-            const beliBarang = getNum('salesBeliBarang');
-            const minyakKenderaan = getNum('salesMinyakKenderaan');
-            const dobi = getNum('salesDobi');
-            const minyakMasakPacks = getNum('salesMinyakMasak');
-            const minyakMasakDeduction = minyakMasakPacks * 5.00;
-        
-            const staffMealPcs = getNum('salesStaffMeal');
-            const ayamTakHabisPcs = getNum('salesAyamTakHabis');
-            const ayamBusukPcs = getNum('salesAyamBusuk');
-            const ayamShortPcs = getNum('salesAyamShort');
-            const reviewPcs = getNum('salesReview');
-            const loyalKad = getNum('salesLoyalKad');
-        
-            const chickenLossDeduction = (staffMealPcs + ayamTakHabisPcs + ayamBusukPcs + ayamShortPcs + reviewPcs) * 4.50;
-            const totalDeductions = gas + ais + beliBarang + minyakKenderaan + dobi + minyakMasakDeduction + chickenLossDeduction + loyalKad;
-        
-            const grandTotal = (ayamSales + platformSales) - totalDeductions + ckgTotalSale + tfTotalSale + coleslawTotalSale + promo10pcsTotal;
-        
-            document.getElementById('dispAyamSales').textContent = `RM ${ayamSales.toFixed(2)}`;
-            document.getElementById('dispPlatformSales').textContent = `RM ${platformSales.toFixed(2)}`;
-            document.getElementById('dispFlavorSales').textContent = `RM ${(ckgTotalSale + tfTotalSale + coleslawTotalSale).toFixed(2)}`;
-            document.getElementById('dispPromoSales').textContent = `RM ${promo10pcsTotal.toFixed(2)}`;
-            document.getElementById('dispTotalDeductions').textContent = `- RM ${totalDeductions.toFixed(2)}`;
-            document.getElementById('grandTotalDisplay').textContent = `RM ${grandTotal.toFixed(2)}`;
-        
-            return {
-                ayamSales, platformSales, ckgTotalSale, tfTotalSale, coleslawTotalSale,
-                promo10pcsTotal, totalDeductions, grandTotal
-            };
-        }
-        
-        function renderSalesUI() {
-            const tbody = document.getElementById('salesReportTableBody');
-            tbody.innerHTML = '';
-        
-            if (salesReports.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500 text-xs">No sales reports submitted.</td></tr>`;
-            } else {
-                salesReports.forEach(report => {
-                    const cawangan = report.cawangan || report.branch || report.cawanganName || 'Branch';
-                    const date = report.date || report.created_at || '--';
-                    const submittedBy = report.submittedBy || report.submitted_by || report.empName || 'Staff';
-                    const bagAyam = report.bagAyam ?? report.bag_ayam ?? 0;
-                    const salesCash = report.salesCash ?? report.sales_cash ?? 0;
-                    const grandTotal = report.totalDailySales ?? report.total_daily_sales ?? report.grandTotal ?? 0;
-        
-                    const row = document.createElement('tr');
-                    row.className = 'hover:bg-slate-900/50 transition';
-                    row.innerHTML = `
-                        <td class="p-3">
-                            <span class="font-bold text-slate-200 block">${cawangan}</span>
-                            <span class="text-[10px] text-slate-500 font-mono">${date}</span>
-                        </td>
-                        <td class="p-3 text-slate-300">${submittedBy}</td>
-                        <td class="p-3 font-mono text-amber-300 font-semibold">${bagAyam} bags</td>
-                        <td class="p-3 font-mono text-slate-300">RM ${parseFloat(salesCash).toFixed(2)}</td>
-                        <td class="p-3 font-mono text-emerald-400 font-bold">RM ${parseFloat(grandTotal).toFixed(2)}</td>
-                        <td class="p-3 text-right space-x-1">
-                            <button onclick="openSalesModal('${report.key}')" class="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-400 text-[10px] font-semibold border border-slate-700 transition">
-                                <i class="fa-solid fa-pen-to-square"></i> Edit
-                            </button>
-                            <button onclick="alert('Catatan: ${report.catatan || report.remarks || 'None'}')" class="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] border border-slate-700 transition">
-                                <i class="fa-solid fa-file-lines"></i> Notes
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(row);
-                });
-            }
-        }
-        
-        function openSalesModal(key) {
-            const report = salesReports.find(r => r.key === key);
-            if (!report) return;
-        
-            // Helper utilities for flexible key resolution
-            const getVal = (...keys) => {
-                for (let k of keys) {
-                    if (report[k] !== undefined && report[k] !== null && report[k] !== '') return report[k];
-                }
-                return 0;
-            };
-        
-            const getStr = (...keys) => {
-                for (let k of keys) {
-                    if (report[k] !== undefined && report[k] !== null) return report[k];
-                }
-                return '';
-            };
-        
-            document.getElementById('salesKey').value = report.key;
-            document.getElementById('salesCawangan').value = getStr('cawangan', 'branch', 'cawanganName');
-            document.getElementById('salesDate').value = getStr('date', 'created_at', 'timestamp');
-            document.getElementById('salesSubmittedBy').value = getStr('submittedBy', 'submitted_by', 'empName');
-            document.getElementById('salesBagAyam').value = getVal('bagAyam', 'bag_ayam', 'ayamBag');
-        
-            document.getElementById('salesMisi').value = getVal('misi');
-            document.getElementById('salesLalamove').value = getVal('lalamove');
-            document.getElementById('salesFoodPanda').value = getVal('foodPanda', 'food_panda');
-            document.getElementById('salesGrabFood').value = getVal('grabFood', 'grab_food');
-            document.getElementById('salesShopeeFood').value = getVal('shopeeFood', 'shopee_food');
-        
-            // Cheese
-            document.getElementById('cheesePrev').value = getVal('cheesePrev', 'cheese_prev');
-            document.getElementById('cheeseNew').value = getVal('cheeseNew', 'cheese_new');
-            document.getElementById('cheesePromo').value = getVal('cheesePromo', 'cheese_promo');
-            document.getElementById('cheeseBal').value = getVal('cheeseBal', 'cheese_bal', 'cheese_balance');
-        
-            // Korean
-            document.getElementById('koreanPrev').value = getVal('koreanPrev', 'korean_prev');
-            document.getElementById('koreanNew').value = getVal('koreanNew', 'korean_new');
-            document.getElementById('koreanPromo').value = getVal('koreanPromo', 'korean_promo');
-            document.getElementById('koreanBal').value = getVal('koreanBal', 'korean_bal', 'korean_balance');
-        
-            // Garlic
-            document.getElementById('garlicPrev').value = getVal('garlicPrev', 'garlic_prev');
-            document.getElementById('garlicNew').value = getVal('garlicNew', 'garlic_new');
-            document.getElementById('garlicPromo').value = getVal('garlicPromo', 'garlic_promo');
-            document.getElementById('garlicBal').value = getVal('garlicBal', 'garlic_bal', 'garlic_balance');
-        
-            // Furikake
-            document.getElementById('furikakePrev').value = getVal('furikakePrev', 'furikake_prev');
-            document.getElementById('furikakeNew').value = getVal('furikakeNew', 'furikake_new');
-            document.getElementById('furikakePromo').value = getVal('furikakePromo', 'furikake_promo');
-            document.getElementById('furikakeBal').value = getVal('furikakeBal', 'furikake_bal', 'furikake_balance');
-        
-            // Togarashi
-            document.getElementById('togarashiPrev').value = getVal('togarashiPrev', 'togarashi_prev');
-            document.getElementById('togarashiNew').value = getVal('togarashiNew', 'togarashi_new');
-            document.getElementById('togarashiPromo').value = getVal('togarashiPromo', 'togarashi_promo');
-            document.getElementById('togarashiBal').value = getVal('togarashiBal', 'togarashi_bal', 'togarashi_balance');
-        
-            // Coleslaw
-            document.getElementById('coleslawPrev').value = getVal('coleslawPrev', 'coleslaw_prev');
-            document.getElementById('coleslawNew').value = getVal('coleslawNew', 'coleslaw_new');
-            document.getElementById('coleslawPromo').value = getVal('coleslawPromo', 'coleslaw_promo');
-            document.getElementById('coleslawBal').value = getVal('coleslawBal', 'coleslaw_bal', 'coleslaw_balance');
-        
-            document.getElementById('salesPromo10pcs').value = getVal('promo10pcs', 'promo_10pcs');
-            document.getElementById('salesMinyakMasak').value = getVal('minyakMasakPacks', 'minyak_masak_packs', 'minyakMasak');
-            document.getElementById('salesStaffMeal').value = getVal('staffMealPcs', 'staff_meal_pcs', 'staffMeal');
-            document.getElementById('salesAyamTakHabis').value = getVal('ayamTakHabisPcs', 'ayam_tak_habis_pcs', 'ayamTakHabis');
-            document.getElementById('salesAyamBusuk').value = getVal('ayamBusukPcs', 'ayam_busuk_pcs', 'ayamBusuk');
-            document.getElementById('salesAyamShort').value = getVal('ayamShortPcs', 'ayam_short_pcs', 'ayamShort');
-            document.getElementById('salesReview').value = getVal('reviewPcs', 'review_pcs', 'review');
-            document.getElementById('salesLoyalKad').value = getVal('loyalKad', 'loyal_kad');
-        
-            document.getElementById('salesGas').value = getVal('gas');
-            document.getElementById('salesAis').value = getVal('ais');
-            document.getElementById('salesBeliBarang').value = getVal('beliBarang', 'beli_barang');
-            document.getElementById('salesMinyakKenderaan').value = getVal('minyakKenderaan', 'minyak_kenderaan');
-            document.getElementById('salesDobi').value = getVal('dobi');
-        
-            document.getElementById('salesCash').value = getVal('salesCash', 'sales_cash', 'cash');
-            document.getElementById('salesCatatan').value = getStr('catatan', 'remarks', 'notes');
-        
-            recalculateSales();
-            document.getElementById('salesModal').classList.remove('hidden');
-        }
-        
-        function closeSalesModal() {
-            document.getElementById('salesModal').classList.add('hidden');
-        }
-        
-        function handleSalesSubmit(e) {
-            e.preventDefault();
-            const key = document.getElementById('salesKey').value;
-            if (!key) return;
-        
-            const calc = recalculateSales();
-        
-            const updatedData = {
-                cawangan: document.getElementById('salesCawangan').value.trim(),
-                date: document.getElementById('salesDate').value.trim(),
-                submittedBy: document.getElementById('salesSubmittedBy').value.trim(),
-                bagAyam: getNum('salesBagAyam'),
-        
-                misi: getNum('salesMisi'),
-                lalamove: getNum('salesLalamove'),
-                foodPanda: getNum('salesFoodPanda'),
-                grabFood: getNum('salesGrabFood'),
-                shopeeFood: getNum('salesShopeeFood'),
-        
-                cheesePrev: getNum('cheesePrev'),
-                cheeseNew: getNum('cheeseNew'),
-                cheesePromo: getNum('cheesePromo'),
-                cheeseBal: getNum('cheeseBal'),
-        
-                koreanPrev: getNum('koreanPrev'),
-                koreanNew: getNum('koreanNew'),
-                koreanPromo: getNum('koreanPromo'),
-                koreanBal: getNum('koreanBal'),
-        
-                garlicPrev: getNum('garlicPrev'),
-                garlicNew: getNum('garlicNew'),
-                garlicPromo: getNum('garlicPromo'),
-                garlicBal: getNum('garlicBal'),
-        
-                furikakePrev: getNum('furikakePrev'),
-                furikakeNew: getNum('furikakeNew'),
-                furikakePromo: getNum('furikakePromo'),
-                furikakeBal: getNum('furikakeBal'),
-        
-                togarashiPrev: getNum('togarashiPrev'),
-                togarashiNew: getNum('togarashiNew'),
-                togarashiPromo: getNum('togarashiPromo'),
-                togarashiBal: getNum('togarashiBal'),
-        
-                coleslawPrev: getNum('coleslawPrev'),
-                coleslawNew: getNum('coleslawNew'),
-                coleslawPromo: getNum('coleslawPromo'),
-                coleslawBal: getNum('coleslawBal'),
-        
-                ckgTotalSale: calc.ckgTotalSale,
-                tfTotalSale: calc.tfTotalSale,
-                coleslawTotalSale: calc.coleslawTotalSale,
-        
-                promo10pcs: getNum('salesPromo10pcs'),
-                minyakMasakPacks: getNum('salesMinyakMasak'),
-                staffMealPcs: getNum('salesStaffMeal'),
-                ayamTakHabisPcs: getNum('salesAyamTakHabis'),
-                ayamBusukPcs: getNum('salesAyamBusuk'),
-                ayamShortPcs: getNum('salesAyamShort'),
-                reviewPcs: getNum('salesReview'),
-                loyalKad: getNum('salesLoyalKad'),
-        
-                gas: getNum('salesGas'),
-                ais: getNum('salesAis'),
-                beliBarang: getNum('salesBeliBarang'),
-                minyakKenderaan: getNum('salesMinyakKenderaan'),
-                dobi: getNum('salesDobi'),
-        
-                salesCash: getNum('salesCash'),
-                totalDailySales: calc.grandTotal,
-                catatan: document.getElementById('salesCatatan').value.trim(),
-                updatedAt: Date.now()
-            };
-        
-            db.ref(`sales_updates/${key}`).update(updatedData).then(() => {
-                showToast("Sales log & inventory calculation updated successfully.");
-                closeSalesModal();
-            }).catch(err => {
-                showToast(err.message, 'error');
-            });
-        }
+    };
+
+    db.ref(`sales_updates/${key}`).update(updatedData).then(() => {
+        showToast("Sales log & inventory calculation updated successfully.");
+        closeSalesModal();
+    }).catch(err => {
+        showToast(err.message, 'error');
+    });
+}
     </script>
 </body>
 </html>
