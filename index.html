@@ -238,14 +238,12 @@
                         </div>
 
                         <form id="manualAttendanceForm" onsubmit="handleManualAttendanceSubmit(event)" class="space-y-3.5">
+                            <!-- Single Select Dropdown for Staff -->
                             <div>
-                                <label class="block text-xs font-semibold text-slate-400 mb-1">Staff Name *</label>
-                                <input type="text" id="manualEmpName" required placeholder="e.g. Ahmad Razak" class="w-full bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500" />
-                            </div>
-
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-400 mb-1">Staff Email *</label>
-                                <input type="email" id="manualUserEmail" required placeholder="staff@gmail.com" class="w-full bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500" />
+                                <label class="block text-xs font-semibold text-slate-400 mb-1">Select Staff Member *</label>
+                                <select id="manualStaffSelect" required class="w-full bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500">
+                                    <option value="">Select Staff Member</option>
+                                </select>
                             </div>
 
                             <div class="grid grid-cols-2 gap-2.5">
@@ -902,6 +900,15 @@
                 }
                 renderSalesUI();
             });
+
+            db.ref('users').on('value', (snap) => {
+                const val = snap.val();
+                usersList = [];
+                if (val) {
+                    Object.keys(val).forEach(key => usersList.push({ key, ...val[key] }));
+                }
+                populateStaffDropdown(); // Re-populate dropdown when user list changes
+            });
         }
 
         /* BRANCH MANAGEMENT FUNCTIONS */
@@ -1088,19 +1095,53 @@
             if (dateInput) dateInput.value = today;
         }
 
-        // Handle Attendance Submission
+        // Populate the Staff Dropdown dynamically from registered users/staff array
+        function populateStaffDropdown() {
+            const select = document.getElementById('manualStaffSelect');
+            if (!select) return;
+
+            const currentSelection = select.value;
+            select.innerHTML = '<option value="">Select Staff Member</option>';
+
+            // Reference your existing global users/staff list (e.g., usersList or staffList)
+            const activeStaff = (typeof usersList !== 'undefined') ? usersList : ((typeof staffList !== 'undefined') ? staffList : []);
+
+            activeStaff.forEach(staff => {
+                const name = staff.name || staff.empName || staff.fullName || 'Unknown Staff';
+                const email = staff.email || staff.userEmail || '';
+
+                const option = document.createElement('option');
+                // Store both name & email as a stringified object in value
+                option.value = JSON.stringify({ name, email });
+                option.textContent = email ? `${name} (${email})` : name;
+                select.appendChild(option);
+            });
+
+            select.value = currentSelection;
+        }
+
+        // Updated Form Handler
         function handleManualAttendanceSubmit(e) {
             e.preventDefault();
 
-            const empName = document.getElementById('manualEmpName').value.trim();
-            const userEmail = document.getElementById('manualUserEmail').value.trim();
+            const staffSelectValue = document.getElementById('manualStaffSelect').value;
+            if (!staffSelectValue) {
+                if (typeof showToast === 'function') showToast("Please select a staff member.", "error");
+                return;
+            }
+
+            // Extract selected staff details
+            const selectedStaff = JSON.parse(staffSelectValue);
+            const empName = selectedStaff.name;
+            const userEmail = selectedStaff.email;
+
             const date = document.getElementById('manualAttendanceDate').value;
             const punctualityStatus = document.getElementById('manualStatus').value;
             const clockIn = document.getElementById('manualClockIn').value || '--';
             const clockOut = document.getElementById('manualClockOut').value || '--';
             const remarks = document.getElementById('manualRemarks').value.trim();
             const fileInput = document.getElementById('manualAttachment');
-            const file = fileInput.files[0];
+            const file = fileInput ? fileInput.files[0] : null;
 
             const recordData = {
                 empName,
