@@ -1140,6 +1140,64 @@
                 .catch(err => showToast(err.message, 'error'));
         }
 
+        // Render Attendance Table with Support for Emergency Badges & Attachments
+        function renderAttendanceTable() {
+            const tbody = document.getElementById('attendanceLogsTableBody');
+            const search = (document.getElementById('attendanceSearch')?.value || '').toLowerCase();
+            tbody.innerHTML = '';
+
+            const filtered = attendanceLogs.filter(log => {
+                const name = (log.empName || '').toLowerCase();
+                const email = (log.userEmail || '').toLowerCase();
+                const status = (log.punctualityStatus || '').toLowerCase();
+                return name.includes(search) || email.includes(search) || status.includes(search);
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-slate-500 text-xs">No matching attendance logs found.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(log => {
+                let badgeClass = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
+                const status = log.punctualityStatus || 'ON TIME';
+
+                if (status === 'ABSENT' || log.statusColor === 'red') {
+                    badgeClass = 'bg-rose-500/20 text-rose-400 border-rose-500/40';
+                } else if (status === 'EMERGENCY LEAVE' || status === 'MEDICAL LEAVE') {
+                    badgeClass = 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+                } else if (status === 'LATE') {
+                    badgeClass = 'bg-orange-500/20 text-orange-400 border-orange-500/40';
+                }
+
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-slate-900/50 transition';
+                row.innerHTML = `
+                    <td class="p-3 text-slate-300 font-mono text-[11px]">${log.date || '--'}</td>
+                    <td class="p-3">
+                        <span class="font-semibold text-slate-200 block">${log.empName || 'Staff'}</span>
+                        <span class="text-[10px] text-slate-500">${log.userEmail || ''}</span>
+                    </td>
+                    <td class="p-3 font-mono text-slate-300">${log.clockIn || '--'}</td>
+                    <td class="p-3 font-mono text-slate-300">${log.clockOut || '--'}</td>
+                    <td class="p-3 text-slate-400 text-xs">${log.remarks || log.durationText || '--'}</td>
+                    <td class="p-3">
+                        <span class="px-2 py-0.5 rounded-full text-[9px] font-bold border ${badgeClass}">
+                            ${status}
+                        </span>
+                    </td>
+                    <td class="p-3 text-right">
+                        ${log.hasAttachment && log.attachmentBase64 ? `
+                            <button onclick="viewAttendanceAttachment('${log.key}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-indigo-400 text-[10px] font-semibold border border-slate-700 transition flex items-center gap-1 ml-auto">
+                                <i class="fa-solid fa-paperclip"></i> View File
+                            </button>
+                        ` : '<span class="text-slate-600 text-[10px]">No File</span>'}
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
         // Viewer helper for viewing emergency attachments
         function viewAttendanceAttachment(key) {
             const log = attendanceLogs.find(a => a.key === key);
