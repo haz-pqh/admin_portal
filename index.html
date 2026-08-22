@@ -249,7 +249,7 @@
                             <div class="grid grid-cols-2 gap-2.5">
                                 <div>
                                     <label class="block text-xs font-semibold text-slate-400 mb-1">Date *</label>
-                                    <input type="date" id="manualAttendanceDate" required class="w-full bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500" />
+                                    <input type="date" id="manualAttendanceDate" readonly tabindex="-1" class="w-full bg-slate-950/60 border border-slate-800 text-slate-400 text-xs rounded-xl px-3 py-2 cursor-not-allowed pointer-events-none focus:outline-none" />
                                 </div>
                                 <div>
                                     <label class="block text-xs font-semibold text-slate-400 mb-1">Status *</label>
@@ -1091,9 +1091,18 @@
         function resetManualAttendanceForm() {
             const form = document.getElementById('manualAttendanceForm');
             if (form) form.reset();
-            const today = new Date().toISOString().split('T')[0];
+
+            // Set input value to current local date (YYYY-MM-DD)
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const today = `${year}-${month}-${day}`;
+
             const dateInput = document.getElementById('manualAttendanceDate');
-            if (dateInput) dateInput.value = today;
+            if (dateInput) {
+                dateInput.value = today;
+            }
         }
 
         // Populate Staff Dropdown dynamically from Firebase 'presence' node
