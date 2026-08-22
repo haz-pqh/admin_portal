@@ -615,66 +615,66 @@
             appId: "1:739455943513:web:84850f115af46cafcb8248",
             measurementId: "G-2BK6WZV8TC"
         };
-
+        
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.database();
         const googleProvider = new firebase.auth.GoogleAuthProvider();
-
+        
         const ADMIN_EMAILS = ["hassanhazril@gmail.com"];
-
+        
         let presenceData = {};
         let activeSessionData = null;
         let attendanceLogs = [];
         let leaveRequests = [];
         let salesReports = [];
         let branchesList = [];
-
+        
         let debounceTimer;
-
+        
         document.addEventListener('DOMContentLoaded', () => {
             const addressInput = document.getElementById('branchAddress');
             const suggestionsList = document.getElementById('addressSuggestions');
-
+        
             addressInput.addEventListener('input', () => {
                 clearTimeout(debounceTimer);
                 const query = addressInput.value.trim();
-
+        
                 if (query.length < 3) {
                     suggestionsList.innerHTML = '';
                     suggestionsList.classList.add('hidden');
                     return;
                 }
-
+        
                 debounceTimer = setTimeout(() => {
                     fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&countrycode=MY`)
                         .then(res => res.json())
                         .then(data => {
                             suggestionsList.innerHTML = '';
-
+        
                             if (!data.features || data.features.length === 0) {
                                 suggestionsList.classList.add('hidden');
                                 return;
                             }
-
+        
                             data.features.forEach(feature => {
                                 const p = feature.properties;
                                 const addressParts = [p.name, p.street, p.city, p.state, p.country].filter(Boolean);
                                 const formattedAddress = addressParts.join(', ');
-
+        
                                 const li = document.createElement('li');
                                 li.className = 'p-2.5 hover:bg-slate-800 cursor-pointer text-slate-300 hover:text-white transition flex items-center gap-2';
                                 li.innerHTML = `<i class="fa-solid fa-location-dot text-indigo-400 text-[10px]"></i> <span>${formattedAddress}</span>`;
-
+        
                                 li.addEventListener('click', () => {
                                     addressInput.value = formattedAddress;
                                     suggestionsList.innerHTML = '';
                                     suggestionsList.classList.add('hidden');
                                 });
-
+        
                                 suggestionsList.appendChild(li);
                             });
-
+        
                             suggestionsList.classList.remove('hidden');
                         })
                         .catch(err => {
@@ -683,54 +683,54 @@
                         });
                 }, 300);
             });
-
+        
             document.addEventListener('click', (e) => {
                 if (!addressInput.contains(e.target) && !suggestionsList.contains(e.target)) {
                     suggestionsList.classList.add('hidden');
                 }
             });
         });
-
+        
         function generateAutoBranchCode() {
             const prefix = "BR-";
             const nextNum = (branchesList.length + 1).toString().padStart(3, '0');
             return `${prefix}${nextNum}`;
         }
-
+        
         function showToast(message, type = 'info') {
             const container = document.getElementById('toastContainer');
             const toast = document.createElement('div');
             const bgClass = type === 'error' ? 'bg-rose-950/90 border-rose-800 text-rose-200' : 'bg-slate-900/90 border-indigo-500/30 text-slate-200';
             const icon = type === 'error' ? 'fa-circle-xmark text-rose-400' : 'fa-circle-check text-indigo-400';
-
+        
             toast.className = `px-4 py-3 rounded-xl border backdrop-blur-lg shadow-2xl text-xs font-medium flex items-center gap-3 transition-all duration-300 pointer-events-auto ${bgClass}`;
             toast.innerHTML = `<i class="fa-solid ${icon} text-sm"></i> <span>${message}</span>`;
-
+        
             container.appendChild(toast);
             setTimeout(() => {
                 toast.classList.add('opacity-0', 'translate-y-2');
                 setTimeout(() => toast.remove(), 300);
             }, 3500);
         }
-
+        
         function switchTab(tabName) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
             document.getElementById(`tab-${tabName}`).classList.remove('hidden');
-
+        
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 btn.classList.remove('text-indigo-400', 'bg-indigo-600/10', 'border', 'border-indigo-500/30');
                 btn.classList.add('text-slate-400');
             });
-
+        
             const activeBtn = document.getElementById(`nav-${tabName}`);
             activeBtn.classList.remove('text-slate-400');
             activeBtn.classList.add('text-indigo-400', 'bg-indigo-600/10', 'border', 'border-indigo-500/30');
         }
-
+        
         auth.onAuthStateChanged((user) => {
             const loginView = document.getElementById('loginView');
             const portalView = document.getElementById('portalView');
-
+        
             if (user) {
                 const userEmail = (user.email || '').toLowerCase();
                 if (!ADMIN_EMAILS.includes(userEmail)) {
@@ -739,37 +739,37 @@
                     });
                     return;
                 }
-
+        
                 document.getElementById('adminEmailDisplay').textContent = userEmail;
                 loginView.classList.add('hidden');
                 portalView.classList.remove('hidden');
-
+        
                 initRealtimeListeners();
             } else {
                 portalView.classList.add('hidden');
                 loginView.classList.remove('hidden');
             }
         });
-
+        
         function handleGoogleLogin() {
             auth.signInWithPopup(googleProvider).catch((err) => showToast(err.message, 'error'));
         }
-
+        
         function handleLogout() {
             auth.signOut().then(() => showToast("Signed out from admin portal."));
         }
-
+        
         function initRealtimeListeners() {
             db.ref('presence').on('value', (snap) => {
                 presenceData = snap.val() || {};
                 renderPresenceUI();
             });
-
+        
             db.ref('active_session').on('value', (snap) => {
                 activeSessionData = snap.val();
                 renderActiveShiftUI();
             });
-
+        
             db.ref('branches').on('value', (snap) => {
                 const val = snap.val();
                 branchesList = [];
@@ -778,13 +778,13 @@
                 }
                 renderBranchesUI();
             });
-
+        
             db.ref('attendance_logs').on('value', (snap) => {
                 const val = snap.val();
                 attendanceLogs = val ? Object.values(val).reverse() : [];
                 renderAttendanceTable();
             });
-
+        
             db.ref('leave_requests').on('value', (snap) => {
                 const val = snap.val();
                 leaveRequests = [];
@@ -794,35 +794,54 @@
                 }
                 renderLeavesUI();
             });
-
+        
+            // RECURSIVE SALES LOADER (Fixes Nested Data Paths)
             db.ref('sales_updates').on('value', (snap) => {
                 const val = snap.val();
                 salesReports = [];
                 if (val) {
-                    Object.keys(val).forEach(key => salesReports.push({ key, ...val[key] }));
+                    function extractReports(node, currentPath = '') {
+                        if (typeof node !== 'object' || node === null) return;
+                        
+                        const isReportNode = node.cawangan !== undefined || node.branch !== undefined || 
+                                             node.bagAyam !== undefined || node.bag_ayam !== undefined || 
+                                             node.submittedBy !== undefined || node.submitted_by !== undefined ||
+                                             node.date !== undefined || node.totalDailySales !== undefined ||
+                                             node.grandTotal !== undefined;
+        
+                        if (isReportNode) {
+                            salesReports.push({ key: currentPath, ...node });
+                        } else {
+                            Object.keys(node).forEach(childKey => {
+                                const path = currentPath ? `${currentPath}/${childKey}` : childKey;
+                                extractReports(node[childKey], path);
+                            });
+                        }
+                    }
+                    extractReports(val);
                     salesReports.reverse();
                 }
                 renderSalesUI();
             });
         }
-
+        
         /* BRANCH MANAGEMENT FUNCTIONS */
         function renderBranchesUI() {
             const tbody = document.getElementById('branchesTableBody');
             tbody.innerHTML = '';
             let activeBranchCount = 0;
-
+        
             if (branchesList.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-slate-500 text-xs">No branches configured yet. Click 'Add New Branch' to create one.</td></tr>`;
             } else {
                 branchesList.forEach(branch => {
                     const isActive = branch.status === 'ACTIVE';
                     if (isActive) activeBranchCount++;
-
+        
                     const statusBadge = isActive 
                         ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' 
                         : 'bg-rose-500/20 text-rose-400 border-rose-500/40';
-
+        
                     const row = document.createElement('tr');
                     row.className = 'hover:bg-slate-900/50 transition';
                     row.innerHTML = `
@@ -848,17 +867,17 @@
                     tbody.appendChild(row);
                 });
             }
-
+        
             document.getElementById('metricActiveBranches').textContent = activeBranchCount;
         }
-
+        
         function openBranchModal(key = null) {
             const form = document.getElementById('branchForm');
             form.reset();
             document.getElementById('branchKey').value = '';
             document.getElementById('addressSuggestions').innerHTML = '';
             document.getElementById('addressSuggestions').classList.add('hidden');
-
+        
             if (key) {
                 const branch = branchesList.find(b => b.key === key);
                 if (branch) {
@@ -873,14 +892,14 @@
                 document.getElementById('branchModalTitle').textContent = 'Add New Branch';
                 document.getElementById('branchCode').value = generateAutoBranchCode();
             }
-
+        
             document.getElementById('branchModal').classList.remove('hidden');
         }
-
+        
         function closeBranchModal() {
             document.getElementById('branchModal').classList.add('hidden');
         }
-
+        
         function handleBranchSubmit(e) {
             e.preventDefault();
             const key = document.getElementById('branchKey').value;
@@ -892,7 +911,7 @@
                 status: document.getElementById('branchStatus').value,
                 updatedAt: Date.now()
             };
-
+        
             if (key) {
                 db.ref(`branches/${key}`).update(payload).then(() => {
                     showToast("Branch details updated successfully.");
@@ -906,7 +925,7 @@
                 }).catch(err => showToast(err.message, 'error'));
             }
         }
-
+        
         function deleteBranch(key) {
             if (confirm("Are you sure you want to remove this branch from database?")) {
                 db.ref(`branches/${key}`).remove().then(() => {
@@ -914,13 +933,13 @@
                 }).catch(err => showToast(err.message, 'error'));
             }
         }
-
+        
         function renderPresenceUI() {
             const container = document.getElementById('presenceContainer');
             container.innerHTML = '';
             const keys = Object.keys(presenceData);
             let onlineCount = 0;
-
+        
             if (keys.length === 0) {
                 container.innerHTML = `<p class="text-xs text-slate-500 py-4 text-center">No staff presence data available.</p>`;
             } else {
@@ -928,11 +947,11 @@
                     const item = presenceData[uid];
                     const isOnline = item.status === 'ONLINE';
                     if (isOnline) onlineCount++;
-
+        
                     const badgeStyle = isOnline 
                         ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' 
                         : 'bg-slate-800 text-slate-400 border-slate-700';
-
+        
                     const row = document.createElement('div');
                     row.className = 'p-3 bg-slate-950/60 border border-slate-800 rounded-xl flex items-center justify-between text-xs';
                     row.innerHTML = `
@@ -947,18 +966,18 @@
                     container.appendChild(row);
                 });
             }
-
+        
             document.getElementById('metricOnlineCount').textContent = onlineCount;
         }
-
+        
         function renderActiveShiftUI() {
             const container = document.getElementById('activeShiftContainer');
             if (!container) return;
-
+        
             if (activeSessionData && activeSessionData.clockInTime) {
                 document.getElementById('metricActiveShifts').textContent = "1";
                 const startTime = new Date(activeSessionData.clockInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
+        
                 container.innerHTML = `
                     <div class="p-4 bg-indigo-950/30 border border-indigo-500/30 rounded-2xl text-xs space-y-2">
                         <div class="flex items-center justify-between">
@@ -975,28 +994,28 @@
                 container.innerHTML = `<p class="text-xs text-slate-500 py-4 text-center">No active shift currently in progress.</p>`;
             }
         }
-
+        
         function renderAttendanceTable() {
             const tbody = document.getElementById('attendanceLogsTableBody');
             const search = (document.getElementById('attendanceSearch')?.value || '').toLowerCase();
             tbody.innerHTML = '';
-
+        
             const filtered = attendanceLogs.filter(log => {
                 const name = (log.empName || '').toLowerCase();
                 const email = (log.userEmail || '').toLowerCase();
                 const id = (log.empId || '').toLowerCase();
                 return name.includes(search) || email.includes(search) || id.includes(search);
             });
-
+        
             if (filtered.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500 text-xs">No matching attendance logs found.</td></tr>`;
                 return;
             }
-
+        
             filtered.forEach(log => {
                 const isAbsent = log.punctualityStatus === 'ABSENT' || log.statusColor === 'red';
                 const badgeClass = isAbsent ? 'bg-rose-500/20 text-rose-400 border-rose-500/40' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
-
+        
                 const row = document.createElement('tr');
                 row.className = 'hover:bg-slate-900/50 transition';
                 row.innerHTML = `
@@ -1017,23 +1036,23 @@
                 tbody.appendChild(row);
             });
         }
-
+        
         function renderLeavesUI() {
             const tbody = document.getElementById('leaveRequestsTableBody');
             const pendingBadge = document.getElementById('pendingLeaveBadge');
             tbody.innerHTML = '';
             let pendingCount = 0;
-
+        
             if (leaveRequests.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="8" class="p-4 text-center text-slate-500 text-xs">No leave requests submitted yet.</td></tr>`;
             } else {
                 leaveRequests.forEach(req => {
                     if (req.status === 'PENDING') pendingCount++;
-
+        
                     let statusBadge = 'bg-amber-500/20 text-amber-400 border-amber-500/40';
                     if (req.status === 'APPROVED') statusBadge = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
                     if (req.status === 'REJECTED') statusBadge = 'bg-rose-500/20 text-rose-400 border-rose-500/40';
-
+        
                     const row = document.createElement('tr');
                     row.className = 'hover:bg-slate-900/50 transition';
                     row.innerHTML = `
@@ -1067,7 +1086,7 @@
                     tbody.appendChild(row);
                 });
             }
-
+        
             document.getElementById('metricPendingLeaves').textContent = pendingCount;
             if (pendingCount > 0) {
                 pendingBadge.textContent = pendingCount;
@@ -1076,21 +1095,21 @@
                 pendingBadge.classList.add('hidden');
             }
         }
-
+        
         function updateLeaveStatus(key, status) {
             db.ref(`leave_requests/${key}/status`).set(status).then(() => {
                 showToast(`Leave request updated to ${status}.`);
             }).catch(err => showToast(err.message, 'error'));
         }
-
+        
         function viewAttachment(key) {
             const req = leaveRequests.find(r => r.key === key);
             if (!req || !req.mcBase64) return;
-
+        
             const modal = document.getElementById('attachmentModal');
             const viewer = document.getElementById('attachmentViewer');
             document.getElementById('attachmentModalTitle').textContent = `Attachment: ${req.mcFileName || 'Document'}`;
-
+        
             if (req.mcBase64.startsWith('data:image/')) {
                 viewer.innerHTML = `<img src="${req.mcBase64}" class="max-w-full h-auto rounded-lg shadow-lg">`;
             } else if (req.mcBase64.startsWith('data:application/pdf')) {
@@ -1098,21 +1117,21 @@
             } else {
                 viewer.innerHTML = `<a href="${req.mcBase64}" download="${req.mcFileName || 'attachment'}" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">Download Attachment</a>`;
             }
-
+        
             modal.classList.remove('hidden');
         }
-
+        
         function closeAttachmentModal() {
             document.getElementById('attachmentModal').classList.add('hidden');
         }
-
+        
         /* ==================== ADVANCED SALES & INVENTORY FORMULA LOGIC ==================== */
-
+        
         function getNum(elementId) {
             const val = parseFloat(document.getElementById(elementId)?.value || 0);
             return isNaN(val) ? 0 : val;
         }
-
+        
         function calculateItemSold(prevId, newId, promoId, balId) {
             const p = getNum(prevId);
             const n = getNum(newId);
@@ -1120,115 +1139,112 @@
             const b = getNum(balId);
             return Math.max(0, (p + n) - (pr + b));
         }
-
+        
         function recalculateSales() {
-            // 1 Bag Ayam = 20 pcs. 1 pc = RM 4.50
             const bagAyam = getNum('salesBagAyam');
             const totalAyamPcs = bagAyam * 20;
             const ayamSales = totalAyamPcs * 4.50;
-
-            // Food Platforms
+        
             const misi = getNum('salesMisi');
             const lalamove = getNum('salesLalamove');
             const foodPanda = getNum('salesFoodPanda');
             const grabFood = getNum('salesGrabFood');
             const shopeeFood = getNum('salesShopeeFood');
             const platformSales = misi + lalamove + foodPanda + grabFood + shopeeFood;
-
-            // Cheese, Korean & Garlic (RM2.00 / cup)
+        
             const cheeseSold = calculateItemSold('cheesePrev', 'cheeseNew', 'cheesePromo', 'cheeseBal');
             document.getElementById('cheeseSold').value = cheeseSold;
-
+        
             const koreanSold = calculateItemSold('koreanPrev', 'koreanNew', 'koreanPromo', 'koreanBal');
             document.getElementById('koreanSold').value = koreanSold;
-
+        
             const garlicSold = calculateItemSold('garlicPrev', 'garlicNew', 'garlicPromo', 'garlicBal');
             document.getElementById('garlicSold').value = garlicSold;
-
+        
             const ckgTotalSale = (cheeseSold + koreanSold + garlicSold) * 2.00;
-
-            // Furikake & Togarashi (RM3.00 / cup)
+        
             const furikakeSold = calculateItemSold('furikakePrev', 'furikakeNew', 'furikakePromo', 'furikakeBal');
             document.getElementById('furikakeSold').value = furikakeSold;
-
+        
             const togarashiSold = calculateItemSold('togarashiPrev', 'togarashiNew', 'togarashiPromo', 'togarashiBal');
             document.getElementById('togarashiSold').value = togarashiSold;
-
+        
             const tfTotalSale = (furikakeSold + togarashiSold) * 3.00;
-
-            // Coleslaw (RM3.50/cup, 2 cups = RM6.50)
+        
             const coleslawSold = calculateItemSold('coleslawPrev', 'coleslawNew', 'coleslawPromo', 'coleslawBal');
             document.getElementById('coleslawSold').value = coleslawSold;
-
+        
             const coleslawPairs = Math.floor(coleslawSold / 2);
             const coleslawRem = coleslawSold % 2;
             const coleslawTotalSale = (coleslawPairs * 6.50) + (coleslawRem * 3.50);
-
-            // Promo 10pcs Ayam -> RM 53.90/one
+        
             const promo10pcsQty = getNum('salesPromo10pcs');
             const promo10pcsTotal = promo10pcsQty * 53.90;
-
-            // Expenses & Deductions
+        
             const gas = getNum('salesGas');
             const ais = getNum('salesAis');
             const beliBarang = getNum('salesBeliBarang');
             const minyakKenderaan = getNum('salesMinyakKenderaan');
             const dobi = getNum('salesDobi');
-            const minyakMasakPacks = getNum('salesMinyakMasak'); // RM5.00/pack
+            const minyakMasakPacks = getNum('salesMinyakMasak');
             const minyakMasakDeduction = minyakMasakPacks * 5.00;
-
-            const staffMealPcs = getNum('salesStaffMeal'); // RM4.50/pc
-            const ayamTakHabisPcs = getNum('salesAyamTakHabis'); // RM4.50/pc
-            const ayamBusukPcs = getNum('salesAyamBusuk'); // RM4.50/pc
-            const ayamShortPcs = getNum('salesAyamShort'); // RM4.50/pc
-            const reviewPcs = getNum('salesReview'); // RM4.50/pc
+        
+            const staffMealPcs = getNum('salesStaffMeal');
+            const ayamTakHabisPcs = getNum('salesAyamTakHabis');
+            const ayamBusukPcs = getNum('salesAyamBusuk');
+            const ayamShortPcs = getNum('salesAyamShort');
+            const reviewPcs = getNum('salesReview');
             const loyalKad = getNum('salesLoyalKad');
-
+        
             const chickenLossDeduction = (staffMealPcs + ayamTakHabisPcs + ayamBusukPcs + ayamShortPcs + reviewPcs) * 4.50;
             const totalDeductions = gas + ais + beliBarang + minyakKenderaan + dobi + minyakMasakDeduction + chickenLossDeduction + loyalKad;
-
-            // Grand Total Calculation Formula:
-            // ((total bag * 4.50) + Misi + Lalamove + Food Panda + Grab Food + Shopee Food) - Deductions + CKG + TF + Coleslaw + Promo 10pcs
+        
             const grandTotal = (ayamSales + platformSales) - totalDeductions + ckgTotalSale + tfTotalSale + coleslawTotalSale + promo10pcsTotal;
-
-            // UI Summary Display Updates
+        
             document.getElementById('dispAyamSales').textContent = `RM ${ayamSales.toFixed(2)}`;
             document.getElementById('dispPlatformSales').textContent = `RM ${platformSales.toFixed(2)}`;
             document.getElementById('dispFlavorSales').textContent = `RM ${(ckgTotalSale + tfTotalSale + coleslawTotalSale).toFixed(2)}`;
             document.getElementById('dispPromoSales').textContent = `RM ${promo10pcsTotal.toFixed(2)}`;
             document.getElementById('dispTotalDeductions').textContent = `- RM ${totalDeductions.toFixed(2)}`;
             document.getElementById('grandTotalDisplay').textContent = `RM ${grandTotal.toFixed(2)}`;
-
+        
             return {
                 ayamSales, platformSales, ckgTotalSale, tfTotalSale, coleslawTotalSale,
                 promo10pcsTotal, totalDeductions, grandTotal
             };
         }
-
+        
         function renderSalesUI() {
             const tbody = document.getElementById('salesReportTableBody');
             tbody.innerHTML = '';
-
+        
             if (salesReports.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500 text-xs">No sales reports submitted.</td></tr>`;
             } else {
                 salesReports.forEach(report => {
+                    const cawangan = report.cawangan || report.branch || report.cawanganName || 'Branch';
+                    const date = report.date || report.created_at || '--';
+                    const submittedBy = report.submittedBy || report.submitted_by || report.empName || 'Staff';
+                    const bagAyam = report.bagAyam ?? report.bag_ayam ?? 0;
+                    const salesCash = report.salesCash ?? report.sales_cash ?? 0;
+                    const grandTotal = report.totalDailySales ?? report.total_daily_sales ?? report.grandTotal ?? 0;
+        
                     const row = document.createElement('tr');
                     row.className = 'hover:bg-slate-900/50 transition';
                     row.innerHTML = `
                         <td class="p-3">
-                            <span class="font-bold text-slate-200 block">${report.cawangan || 'Branch'}</span>
-                            <span class="text-[10px] text-slate-500 font-mono">${report.date || '--'}</span>
+                            <span class="font-bold text-slate-200 block">${cawangan}</span>
+                            <span class="text-[10px] text-slate-500 font-mono">${date}</span>
                         </td>
-                        <td class="p-3 text-slate-300">${report.submittedBy || 'Staff'}</td>
-                        <td class="p-3 font-mono text-amber-300 font-semibold">${report.bagAyam || 0} bags</td>
-                        <td class="p-3 font-mono text-slate-300">RM ${parseFloat(report.salesCash || 0).toFixed(2)}</td>
-                        <td class="p-3 font-mono text-emerald-400 font-bold">RM ${parseFloat(report.totalDailySales || 0).toFixed(2)}</td>
+                        <td class="p-3 text-slate-300">${submittedBy}</td>
+                        <td class="p-3 font-mono text-amber-300 font-semibold">${bagAyam} bags</td>
+                        <td class="p-3 font-mono text-slate-300">RM ${parseFloat(salesCash).toFixed(2)}</td>
+                        <td class="p-3 font-mono text-emerald-400 font-bold">RM ${parseFloat(grandTotal).toFixed(2)}</td>
                         <td class="p-3 text-right space-x-1">
                             <button onclick="openSalesModal('${report.key}')" class="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-400 text-[10px] font-semibold border border-slate-700 transition">
                                 <i class="fa-solid fa-pen-to-square"></i> Edit
                             </button>
-                            <button onclick="alert('Catatan: ${report.catatan || 'None'}')" class="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] border border-slate-700 transition">
+                            <button onclick="alert('Catatan: ${report.catatan || report.remarks || 'None'}')" class="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] border border-slate-700 transition">
                                 <i class="fa-solid fa-file-lines"></i> Notes
                             </button>
                         </td>
@@ -1237,139 +1253,153 @@
                 });
             }
         }
-
+        
         function openSalesModal(key) {
             const report = salesReports.find(r => r.key === key);
             if (!report) return;
-
+        
+            // Helper utilities for flexible key resolution
+            const getVal = (...keys) => {
+                for (let k of keys) {
+                    if (report[k] !== undefined && report[k] !== null && report[k] !== '') return report[k];
+                }
+                return 0;
+            };
+        
+            const getStr = (...keys) => {
+                for (let k of keys) {
+                    if (report[k] !== undefined && report[k] !== null) return report[k];
+                }
+                return '';
+            };
+        
             document.getElementById('salesKey').value = report.key;
-            document.getElementById('salesCawangan').value = report.cawangan || '';
-            document.getElementById('salesDate').value = report.date || '';
-            document.getElementById('salesSubmittedBy').value = report.submittedBy || '';
-            document.getElementById('salesBagAyam').value = report.bagAyam || 0;
-
-            document.getElementById('salesMisi').value = report.misi || 0;
-            document.getElementById('salesLalamove').value = report.lalamove || 0;
-            document.getElementById('salesFoodPanda').value = report.foodPanda || 0;
-            document.getElementById('salesGrabFood').value = report.grabFood || 0;
-            document.getElementById('salesShopeeFood').value = report.shopeeFood || 0;
-
+            document.getElementById('salesCawangan').value = getStr('cawangan', 'branch', 'cawanganName');
+            document.getElementById('salesDate').value = getStr('date', 'created_at', 'timestamp');
+            document.getElementById('salesSubmittedBy').value = getStr('submittedBy', 'submitted_by', 'empName');
+            document.getElementById('salesBagAyam').value = getVal('bagAyam', 'bag_ayam', 'ayamBag');
+        
+            document.getElementById('salesMisi').value = getVal('misi');
+            document.getElementById('salesLalamove').value = getVal('lalamove');
+            document.getElementById('salesFoodPanda').value = getVal('foodPanda', 'food_panda');
+            document.getElementById('salesGrabFood').value = getVal('grabFood', 'grab_food');
+            document.getElementById('salesShopeeFood').value = getVal('shopeeFood', 'shopee_food');
+        
             // Cheese
-            document.getElementById('cheesePrev').value = report.cheesePrev || 0;
-            document.getElementById('cheeseNew').value = report.cheeseNew || 0;
-            document.getElementById('cheesePromo').value = report.cheesePromo || 0;
-            document.getElementById('cheeseBal').value = report.cheeseBal || 0;
-
+            document.getElementById('cheesePrev').value = getVal('cheesePrev', 'cheese_prev');
+            document.getElementById('cheeseNew').value = getVal('cheeseNew', 'cheese_new');
+            document.getElementById('cheesePromo').value = getVal('cheesePromo', 'cheese_promo');
+            document.getElementById('cheeseBal').value = getVal('cheeseBal', 'cheese_bal', 'cheese_balance');
+        
             // Korean
-            document.getElementById('koreanPrev').value = report.koreanPrev || 0;
-            document.getElementById('koreanNew').value = report.koreanNew || 0;
-            document.getElementById('koreanPromo').value = report.koreanPromo || 0;
-            document.getElementById('koreanBal').value = report.koreanBal || 0;
-
+            document.getElementById('koreanPrev').value = getVal('koreanPrev', 'korean_prev');
+            document.getElementById('koreanNew').value = getVal('koreanNew', 'korean_new');
+            document.getElementById('koreanPromo').value = getVal('koreanPromo', 'korean_promo');
+            document.getElementById('koreanBal').value = getVal('koreanBal', 'korean_bal', 'korean_balance');
+        
             // Garlic
-            document.getElementById('garlicPrev').value = report.garlicPrev || 0;
-            document.getElementById('garlicNew').value = report.garlicNew || 0;
-            document.getElementById('garlicPromo').value = report.garlicPromo || 0;
-            document.getElementById('garlicBal').value = report.garlicBal || 0;
-
+            document.getElementById('garlicPrev').value = getVal('garlicPrev', 'garlic_prev');
+            document.getElementById('garlicNew').value = getVal('garlicNew', 'garlic_new');
+            document.getElementById('garlicPromo').value = getVal('garlicPromo', 'garlic_promo');
+            document.getElementById('garlicBal').value = getVal('garlicBal', 'garlic_bal', 'garlic_balance');
+        
             // Furikake
-            document.getElementById('furikakePrev').value = report.furikakePrev || 0;
-            document.getElementById('furikakeNew').value = report.furikakeNew || 0;
-            document.getElementById('furikakePromo').value = report.furikakePromo || 0;
-            document.getElementById('furikakeBal').value = report.furikakeBal || 0;
-
+            document.getElementById('furikakePrev').value = getVal('furikakePrev', 'furikake_prev');
+            document.getElementById('furikakeNew').value = getVal('furikakeNew', 'furikake_new');
+            document.getElementById('furikakePromo').value = getVal('furikakePromo', 'furikake_promo');
+            document.getElementById('furikakeBal').value = getVal('furikakeBal', 'furikake_bal', 'furikake_balance');
+        
             // Togarashi
-            document.getElementById('togarashiPrev').value = report.togarashiPrev || 0;
-            document.getElementById('togarashiNew').value = report.togarashiNew || 0;
-            document.getElementById('togarashiPromo').value = report.togarashiPromo || 0;
-            document.getElementById('togarashiBal').value = report.togarashiBal || 0;
-
+            document.getElementById('togarashiPrev').value = getVal('togarashiPrev', 'togarashi_prev');
+            document.getElementById('togarashiNew').value = getVal('togarashiNew', 'togarashi_new');
+            document.getElementById('togarashiPromo').value = getVal('togarashiPromo', 'togarashi_promo');
+            document.getElementById('togarashiBal').value = getVal('togarashiBal', 'togarashi_bal', 'togarashi_balance');
+        
             // Coleslaw
-            document.getElementById('coleslawPrev').value = report.coleslawPrev || 0;
-            document.getElementById('coleslawNew').value = report.coleslawNew || 0;
-            document.getElementById('coleslawPromo').value = report.coleslawPromo || 0;
-            document.getElementById('coleslawBal').value = report.coleslawBal || 0;
-
-            document.getElementById('salesPromo10pcs').value = report.promo10pcs || 0;
-            document.getElementById('salesMinyakMasak').value = report.minyakMasakPacks || 0;
-            document.getElementById('salesStaffMeal').value = report.staffMealPcs || 0;
-            document.getElementById('salesAyamTakHabis').value = report.ayamTakHabisPcs || 0;
-            document.getElementById('salesAyamBusuk').value = report.ayamBusukPcs || 0;
-            document.getElementById('salesAyamShort').value = report.ayamShortPcs || 0;
-            document.getElementById('salesReview').value = report.reviewPcs || 0;
-            document.getElementById('salesLoyalKad').value = report.loyalKad || 0;
-
-            document.getElementById('salesGas').value = report.gas || 0;
-            document.getElementById('salesAis').value = report.ais || 0;
-            document.getElementById('salesBeliBarang').value = report.beliBarang || 0;
-            document.getElementById('salesMinyakKenderaan').value = report.minyakKenderaan || 0;
-            document.getElementById('salesDobi').value = report.dobi || 0;
-
-            document.getElementById('salesCash').value = report.salesCash || 0;
-            document.getElementById('salesCatatan').value = report.catatan || '';
-
+            document.getElementById('coleslawPrev').value = getVal('coleslawPrev', 'coleslaw_prev');
+            document.getElementById('coleslawNew').value = getVal('coleslawNew', 'coleslaw_new');
+            document.getElementById('coleslawPromo').value = getVal('coleslawPromo', 'coleslaw_promo');
+            document.getElementById('coleslawBal').value = getVal('coleslawBal', 'coleslaw_bal', 'coleslaw_balance');
+        
+            document.getElementById('salesPromo10pcs').value = getVal('promo10pcs', 'promo_10pcs');
+            document.getElementById('salesMinyakMasak').value = getVal('minyakMasakPacks', 'minyak_masak_packs', 'minyakMasak');
+            document.getElementById('salesStaffMeal').value = getVal('staffMealPcs', 'staff_meal_pcs', 'staffMeal');
+            document.getElementById('salesAyamTakHabis').value = getVal('ayamTakHabisPcs', 'ayam_tak_habis_pcs', 'ayamTakHabis');
+            document.getElementById('salesAyamBusuk').value = getVal('ayamBusukPcs', 'ayam_busuk_pcs', 'ayamBusuk');
+            document.getElementById('salesAyamShort').value = getVal('ayamShortPcs', 'ayam_short_pcs', 'ayamShort');
+            document.getElementById('salesReview').value = getVal('reviewPcs', 'review_pcs', 'review');
+            document.getElementById('salesLoyalKad').value = getVal('loyalKad', 'loyal_kad');
+        
+            document.getElementById('salesGas').value = getVal('gas');
+            document.getElementById('salesAis').value = getVal('ais');
+            document.getElementById('salesBeliBarang').value = getVal('beliBarang', 'beli_barang');
+            document.getElementById('salesMinyakKenderaan').value = getVal('minyakKenderaan', 'minyak_kenderaan');
+            document.getElementById('salesDobi').value = getVal('dobi');
+        
+            document.getElementById('salesCash').value = getVal('salesCash', 'sales_cash', 'cash');
+            document.getElementById('salesCatatan').value = getStr('catatan', 'remarks', 'notes');
+        
             recalculateSales();
             document.getElementById('salesModal').classList.remove('hidden');
         }
-
+        
         function closeSalesModal() {
             document.getElementById('salesModal').classList.add('hidden');
         }
-
+        
         function handleSalesSubmit(e) {
             e.preventDefault();
             const key = document.getElementById('salesKey').value;
             if (!key) return;
-
+        
             const calc = recalculateSales();
-
+        
             const updatedData = {
                 cawangan: document.getElementById('salesCawangan').value.trim(),
                 date: document.getElementById('salesDate').value.trim(),
                 submittedBy: document.getElementById('salesSubmittedBy').value.trim(),
                 bagAyam: getNum('salesBagAyam'),
-
+        
                 misi: getNum('salesMisi'),
                 lalamove: getNum('salesLalamove'),
                 foodPanda: getNum('salesFoodPanda'),
                 grabFood: getNum('salesGrabFood'),
                 shopeeFood: getNum('salesShopeeFood'),
-
-                // Flavor & Item Stocks
+        
                 cheesePrev: getNum('cheesePrev'),
                 cheeseNew: getNum('cheeseNew'),
                 cheesePromo: getNum('cheesePromo'),
                 cheeseBal: getNum('cheeseBal'),
-
+        
                 koreanPrev: getNum('koreanPrev'),
                 koreanNew: getNum('koreanNew'),
                 koreanPromo: getNum('koreanPromo'),
                 koreanBal: getNum('koreanBal'),
-
+        
                 garlicPrev: getNum('garlicPrev'),
                 garlicNew: getNum('garlicNew'),
                 garlicPromo: getNum('garlicPromo'),
                 garlicBal: getNum('garlicBal'),
-
+        
                 furikakePrev: getNum('furikakePrev'),
                 furikakeNew: getNum('furikakeNew'),
                 furikakePromo: getNum('furikakePromo'),
                 furikakeBal: getNum('furikakeBal'),
-
+        
                 togarashiPrev: getNum('togarashiPrev'),
                 togarashiNew: getNum('togarashiNew'),
                 togarashiPromo: getNum('togarashiPromo'),
                 togarashiBal: getNum('togarashiBal'),
-
+        
                 coleslawPrev: getNum('coleslawPrev'),
                 coleslawNew: getNum('coleslawNew'),
                 coleslawPromo: getNum('coleslawPromo'),
                 coleslawBal: getNum('coleslawBal'),
-
+        
                 ckgTotalSale: calc.ckgTotalSale,
                 tfTotalSale: calc.tfTotalSale,
                 coleslawTotalSale: calc.coleslawTotalSale,
-
+        
                 promo10pcs: getNum('salesPromo10pcs'),
                 minyakMasakPacks: getNum('salesMinyakMasak'),
                 staffMealPcs: getNum('salesStaffMeal'),
@@ -1378,19 +1408,19 @@
                 ayamShortPcs: getNum('salesAyamShort'),
                 reviewPcs: getNum('salesReview'),
                 loyalKad: getNum('salesLoyalKad'),
-
+        
                 gas: getNum('salesGas'),
                 ais: getNum('salesAis'),
                 beliBarang: getNum('salesBeliBarang'),
                 minyakKenderaan: getNum('salesMinyakKenderaan'),
                 dobi: getNum('salesDobi'),
-
+        
                 salesCash: getNum('salesCash'),
                 totalDailySales: calc.grandTotal,
                 catatan: document.getElementById('salesCatatan').value.trim(),
                 updatedAt: Date.now()
             };
-
+        
             db.ref(`sales_updates/${key}`).update(updatedData).then(() => {
                 showToast("Sales log & inventory calculation updated successfully.");
                 closeSalesModal();
