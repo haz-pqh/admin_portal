@@ -873,9 +873,17 @@
                 renderBranchesUI();
             });
 
+            // Listen to Firebase attendance_logs and attach the record key
             db.ref('attendance_logs').on('value', (snap) => {
                 const val = snap.val();
-                attendanceLogs = val ? Object.values(val).reverse() : [];
+                attendanceLogs = [];
+                if (val) {
+                    Object.keys(val).forEach(key => {
+                        // MUST explicitly include key here
+                        attendanceLogs.push({ key: key, ...val[key] });
+                    });
+                    attendanceLogs.reverse(); // Display newest entries first
+                }
                 renderAttendanceTable();
             });
 
@@ -1259,7 +1267,14 @@
         }
 
         function viewAttendanceAttachment(key) {
+            if (!key || key === 'undefined') {
+                if (typeof showToast === 'function') showToast("Invalid record ID.", "error");
+                return;
+            }
+
+            // Find record by key in attendanceLogs array
             const log = attendanceLogs.find(a => a.key === key);
+            
             if (!log || !log.attachmentBase64) {
                 if (typeof showToast === 'function') showToast("No attachment found for this entry.", "error");
                 return;
@@ -1270,23 +1285,18 @@
             const title = document.getElementById('attachmentModalTitle');
 
             if (!modal || !viewer) {
-                alert("Attachment preview modal missing in HTML.");
+                alert("Attachment modal element missing in HTML.");
                 return;
             }
 
-            title.textContent = `Attachment: ${log.attachmentFileName || 'Document'}`;
+            title.textContent = `Attachment: ${log.attachmentFileName || 'Document.pdf'}`;
             viewer.innerHTML = '';
 
             const base64Data = log.attachmentBase64;
 
-            // Handle Image Files
-            if (base64Data.includes('data:image/')) {
-                viewer.innerHTML = `<img src="${base64Data}" class="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg">`;
-            } 
-            // Handle PDF Files
-            else if (base64Data.includes('data:application/pdf')) {
+            // Handle PDF rendering using Blob URL
+            if (base64Data.includes('data:application/pdf')) {
                 try {
-                    // Convert Base64 string to Blob URL for iframe rendering compatibility
                     const base64Parts = base64Data.split(',');
                     const contentType = base64Parts[0].match(/:(.*?);/)[1];
                     const raw = window.atob(base64Parts[1]);
@@ -1302,29 +1312,31 @@
 
                     viewer.innerHTML = `
                         <div class="w-full flex flex-col items-center gap-3">
-                            <object data="${blobUrl}" type="application/pdf" class="w-full h-[65vh] rounded-xl border border-slate-800">
-                                <iframe src="${blobUrl}" class="w-full h-[65vh] rounded-xl border border-slate-800"></iframe>
-                            </object>
-                            <a href="${blobUrl}" target="_blank" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2">
-                                <i class="fa-solid fa-arrow-up-right-from-square"></i> Open in New Tab / Download PDF
+                            <iframe src="${blobUrl}" class="w-full h-[65vh] rounded-xl border border-slate-800"></iframe>
+                            <a href="${blobUrl}" target="_blank" download="${log.attachmentFileName || 'document.pdf'}" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2">
+                                <i class="fa-solid fa-download"></i> Open / Download PDF
                             </a>
                         </div>
                     `;
                 } catch (err) {
                     viewer.innerHTML = `
                         <div class="text-center p-6">
-                            <p class="text-slate-400 text-xs mb-3">Unable to embed PDF viewer.</p>
-                            <a href="${base64Data}" download="${log.attachmentFileName || 'document.pdf'}" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition">
+                            <p class="text-slate-400 text-xs mb-3">Unable to embed PDF preview.</p>
+                            <a href="${base64Data}" download="${log.attachmentFileName || 'document.pdf'}" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">
                                 Download PDF File
                             </a>
                         </div>
                     `;
                 }
             } 
-            // Fallback for other file types
+            // Handle Image files
+            else if (base64Data.includes('data:image/')) {
+                viewer.innerHTML = `<img src="${base64Data}" class="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg">`;
+            } 
+            // Default fallback
             else {
                 viewer.innerHTML = `
-                    <a href="${base64Data}" download="${log.attachmentFileName || 'attachment'}" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold">
+                    <a href="${base64Data}" download="${log.attachmentFileName || 'attachment'}" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">
                         Download File (${log.attachmentFileName || 'Attachment'})
                     </a>
                 `;
