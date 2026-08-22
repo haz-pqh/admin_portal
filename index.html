@@ -87,6 +87,9 @@
                 <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn px-4 py-2 rounded-xl text-xs font-semibold text-indigo-400 bg-indigo-600/10 border border-indigo-500/30 transition flex items-center gap-2">
                     <i class="fa-solid fa-chart-pie"></i> Overview
                 </button>
+                <button onclick="switchTab('branches')" id="nav-branches" class="nav-btn px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition flex items-center gap-2">
+                    <i class="fa-solid fa-store"></i> Branches
+                </button>
                 <button onclick="switchTab('attendance')" id="nav-attendance" class="nav-btn px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition flex items-center gap-2">
                     <i class="fa-solid fa-clock-rotate-left"></i> Attendance Logs
                 </button>
@@ -128,10 +131,10 @@
                         </div>
                     </div>
                     <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl">
-                        <span class="text-slate-400 text-xs font-medium">Sales Reports Today</span>
+                        <span class="text-slate-400 text-xs font-medium">Active Branches</span>
                         <div class="flex items-center justify-between mt-2">
-                            <span id="metricTodaySalesReports" class="text-2xl font-black text-sky-400">0</span>
-                            <i class="fa-solid fa-chart-line text-sky-500/30 text-2xl"></i>
+                            <span id="metricActiveBranches" class="text-2xl font-black text-sky-400">0</span>
+                            <i class="fa-solid fa-store text-sky-500/30 text-2xl"></i>
                         </div>
                     </div>
                 </div>
@@ -160,7 +163,40 @@
                 </div>
             </section>
 
-            <!-- TAB 2: ATTENDANCE LOGS -->
+            <!-- TAB 2: BRANCHES MANAGEMENT -->
+            <section id="tab-branches" class="tab-content space-y-4 hidden">
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                        <div>
+                            <h3 class="text-sm font-bold text-white uppercase tracking-wider">Branch Directory</h3>
+                            <p class="text-xs text-slate-400">Add, edit, or manage company branch details and assign personnel</p>
+                        </div>
+                        <button onclick="openBranchModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-lg transition flex items-center gap-2">
+                            <i class="fa-solid fa-plus"></i> Add New Branch
+                        </button>
+                    </div>
+
+                    <div class="overflow-x-auto mt-4">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-950 text-slate-400 uppercase text-[10px] border-b border-slate-800">
+                                <tr>
+                                    <th class="p-3 font-bold">Branch Code / Name</th>
+                                    <th class="p-3 font-bold">Manager In Charge</th>
+                                    <th class="p-3 font-bold">Contact Phone</th>
+                                    <th class="p-3 font-bold">Address</th>
+                                    <th class="p-3 font-bold">Status</th>
+                                    <th class="p-3 font-bold text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="branchesTableBody" class="divide-y divide-slate-800/60">
+                                <!-- Dynamic Branch Rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: ATTENDANCE LOGS -->
             <section id="tab-attendance" class="tab-content space-y-4 hidden">
                 <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl">
                     <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pb-4 border-b border-slate-800">
@@ -191,7 +227,7 @@
                 </div>
             </section>
 
-            <!-- TAB 3: LEAVE REQUESTS -->
+            <!-- TAB 4: LEAVE REQUESTS -->
             <section id="tab-leaves" class="tab-content space-y-4 hidden">
                 <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl">
                     <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-4">Leave Application Management</h3>
@@ -218,7 +254,7 @@
                 </div>
             </section>
 
-            <!-- TAB 4: DAILY SALES REPORTS -->
+            <!-- TAB 5: DAILY SALES REPORTS -->
             <section id="tab-sales" class="tab-content space-y-4 hidden">
                 <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl">
                     <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-4">Submitted Daily Sales & Inventory Logs</h3>
@@ -245,6 +281,52 @@
         </main>
     </div>
 
+    <!-- Branch Modal Form -->
+    <div id="branchModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative text-left">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+                <h3 class="text-sm font-bold text-white uppercase tracking-wider" id="branchModalTitle">Add New Branch</h3>
+                <button onclick="closeBranchModal()" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2">&times;</button>
+            </div>
+            <form id="branchForm" onsubmit="handleBranchSubmit(event)" class="space-y-4 text-xs">
+                <input type="hidden" id="branchKey">
+                <div>
+                    <label class="block text-slate-400 mb-1 font-medium">Branch Code / ID</label>
+                    <input type="text" id="branchCode" required placeholder="e.g. BR-KL01" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1 font-medium">Branch Name</label>
+                    <input type="text" id="branchName" required placeholder="e.g. Ampang Utama Branch" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-400 mb-1 font-medium">Manager In Charge</label>
+                        <input type="text" id="branchManager" placeholder="Manager Name" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1 font-medium">Contact Phone</label>
+                        <input type="text" id="branchPhone" placeholder="+60 12-345 6789" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1 font-medium">Location Address</label>
+                    <textarea id="branchAddress" rows="2" placeholder="Full branch physical address..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500"></textarea>
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1 font-medium">Status</label>
+                    <select id="branchStatus" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
+                        <option value="ACTIVE">ACTIVE</option>
+                        <option value="INACTIVE">INACTIVE</option>
+                    </select>
+                </div>
+                <div class="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                    <button type="button" onclick="closeBranchModal()" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl font-semibold hover:bg-slate-700">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-500 shadow-lg shadow-indigo-600/20">Save Branch</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Attachment Preview Modal -->
     <div id="attachmentModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl p-6 shadow-2xl relative text-left">
@@ -260,7 +342,7 @@
 
     <!-- Script Logic -->
     <script>
-        // 1. FIREBASE CONFIGURATION (Matching Staff Portal)
+        // 1. FIREBASE CONFIGURATION
         const firebaseConfig = {
             apiKey: "AIzaSyD8PVd9v61cAmKoe_RjB2Wc1AswASLIFWo",
             authDomain: "staffportal-f740f.firebaseapp.com",
@@ -284,6 +366,7 @@
         let attendanceLogs = [];
         let leaveRequests = [];
         let salesReports = [];
+        let branchesList = [];
 
         function showToast(message, type = 'info') {
             const container = document.getElementById('toastContainer');
@@ -360,6 +443,16 @@
                 renderActiveShiftUI();
             });
 
+            // Branches
+            db.ref('branches').on('value', (snap) => {
+                const val = snap.val();
+                branchesList = [];
+                if (val) {
+                    Object.keys(val).forEach(key => branchesList.push({ key, ...val[key] }));
+                }
+                renderBranchesUI();
+            });
+
             // Attendance Logs
             db.ref('attendance_logs').on('value', (snap) => {
                 const val = snap.val();
@@ -386,6 +479,119 @@
                 salesReports = val ? Object.values(val).reverse() : [];
                 renderSalesUI();
             });
+        }
+
+        /* BRANCHES MANAGEMENT FUNCTIONS */
+        function renderBranchesUI() {
+            const tbody = document.getElementById('branchesTableBody');
+            tbody.innerHTML = '';
+
+            let activeBranchCount = 0;
+
+            if (branchesList.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500 text-xs">No branches configured yet. Click 'Add New Branch' to create one.</td></tr>`;
+            } else {
+                branchesList.forEach(branch => {
+                    const isActive = branch.status === 'ACTIVE';
+                    if (isActive) activeBranchCount++;
+
+                    const statusBadge = isActive 
+                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' 
+                        : 'bg-rose-500/20 text-rose-400 border-rose-500/40';
+
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-slate-900/50 transition';
+                    row.innerHTML = `
+                        <td class="p-3">
+                            <span class="font-bold text-slate-200 block">${branch.name || '--'}</span>
+                            <span class="text-[10px] text-indigo-400 font-mono">${branch.code || ''}</span>
+                        </td>
+                        <td class="p-3 text-slate-300">${branch.manager || 'Unassigned'}</td>
+                        <td class="p-3 font-mono text-slate-400">${branch.phone || '--'}</td>
+                        <td class="p-3 text-slate-400 max-w-xs truncate" title="${branch.address || ''}">${branch.address || '--'}</td>
+                        <td class="p-3">
+                            <span class="px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusBadge}">
+                                ${branch.status || 'INACTIVE'}
+                            </span>
+                        </td>
+                        <td class="p-3 text-right space-x-1">
+                            <button onclick="openBranchModal('${branch.key}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-semibold border border-slate-700">
+                                <i class="fa-solid fa-pen-to-square"></i> Edit
+                            </button>
+                            <button onclick="deleteBranch('${branch.key}')" class="px-2 py-1 rounded bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 text-[10px] font-semibold border border-rose-800/50">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+
+            document.getElementById('metricActiveBranches').textContent = activeBranchCount;
+        }
+
+        function openBranchModal(key = null) {
+            const form = document.getElementById('branchForm');
+            form.reset();
+            document.getElementById('branchKey').value = '';
+
+            if (key) {
+                const branch = branchesList.find(b => b.key === key);
+                if (branch) {
+                    document.getElementById('branchModalTitle').textContent = 'Edit Branch Location';
+                    document.getElementById('branchKey').value = branch.key;
+                    document.getElementById('branchCode').value = branch.code || '';
+                    document.getElementById('branchName').value = branch.name || '';
+                    document.getElementById('branchManager').value = branch.manager || '';
+                    document.getElementById('branchPhone').value = branch.phone || '';
+                    document.getElementById('branchAddress').value = branch.address || '';
+                    document.getElementById('branchStatus').value = branch.status || 'ACTIVE';
+                }
+            } else {
+                document.getElementById('branchModalTitle').textContent = 'Add New Branch';
+            }
+
+            document.getElementById('branchModal').classList.remove('hidden');
+        }
+
+        function closeBranchModal() {
+            document.getElementById('branchModal').classList.add('hidden');
+        }
+
+        function handleBranchSubmit(e) {
+            e.preventDefault();
+            const key = document.getElementById('branchKey').value;
+            
+            const payload = {
+                code: document.getElementById('branchCode').value.trim(),
+                name: document.getElementById('branchName').value.trim(),
+                manager: document.getElementById('branchManager').value.trim(),
+                phone: document.getElementById('branchPhone').value.trim(),
+                address: document.getElementById('branchAddress').value.trim(),
+                status: document.getElementById('branchStatus').value,
+                updatedAt: Date.now()
+            };
+
+            if (key) {
+                db.ref(`branches/${key}`).update(payload).then(() => {
+                    showToast("Branch details updated successfully.");
+                    closeBranchModal();
+                }).catch(err => showToast(err.message, 'error'));
+            } else {
+                payload.createdAt = Date.now();
+                db.ref('branches').push(payload).then(() => {
+                    showToast("New branch created successfully.");
+                    closeBranchModal();
+                }).catch(err => showToast(err.message, 'error'));
+            }
+        }
+
+        function deleteBranch(key) {
+            if (confirm("Are you sure you want to remove this branch from database?")) {
+                db.ref(`branches/${key}`).remove().then(() => {
+                    showToast("Branch removed successfully.");
+                }).catch(err => showToast(err.message, 'error'));
+            }
         }
 
         function renderPresenceUI() {
@@ -586,14 +792,11 @@
             tbody.innerHTML = '';
 
             const todayStr = new Date().toISOString().slice(0, 10);
-            let todayReportsCount = 0;
 
             if (salesReports.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-500 text-xs">No sales reports submitted.</td></tr>`;
             } else {
                 salesReports.forEach(report => {
-                    if (report.date === todayStr) todayReportsCount++;
-
                     const row = document.createElement('tr');
                     row.className = 'hover:bg-slate-900/50 transition';
                     row.innerHTML = `
@@ -613,8 +816,6 @@
                     tbody.appendChild(row);
                 });
             }
-
-            document.getElementById('metricTodaySalesReports').textContent = todayReportsCount;
         }
     </script>
 </body>
