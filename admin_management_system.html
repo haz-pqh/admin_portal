@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Management System | Portal Backend</title>
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: { 50: '#f0f5ff', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Firebase Compat SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+</head>
+<body class="h-full text-slate-100 font-sans antialiased bg-slate-950 selection:bg-indigo-500 selection:text-white">
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- ==================== LOGIN VIEW ==================== -->
+    <div id="loginView" class="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/40 via-slate-950 to-slate-950">
+        <div class="w-full max-w-md bg-slate-900/90 backdrop-blur-xl border border-slate-800 p-8 rounded-3xl shadow-2xl relative z-10 text-center">
+            <div class="inline-flex items-center justify-center w-16 h-16 bg-indigo-600/10 border border-indigo-500/30 text-indigo-400 rounded-2xl mb-4 text-2xl">
+                <i class="fa-solid fa-user-shield"></i>
+            </div>
+            <h1 class="text-2xl font-bold text-white tracking-tight">Admin Portal</h1>
+            <p class="text-xs text-slate-400 mt-1 mb-8">Sign in with authorized administrative credentials</p>
+
+            <button type="button" onclick="handleGoogleLogin()" 
+                class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl shadow-lg shadow-indigo-600/25 transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-3 text-sm">
+                <i class="fa-brands fa-google"></i>
+                <span>Sign In with Admin Account</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ==================== MAIN ADMIN DASHBOARD ==================== -->
+    <div id="portalView" class="hidden min-h-screen flex flex-col bg-slate-950">
+        <!-- Top Navigation Bar -->
+        <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md sticky top-0 z-30">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                        <i class="fa-solid fa-shield-cat"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-sm font-bold text-white tracking-wide">Admin Control Center</h2>
+                        <p id="adminEmailDisplay" class="text-[11px] text-slate-400">admin@company.com</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
+                        Admin Mode
+                    </span>
+                    <button onclick="handleLogout()" class="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-semibold rounded-xl transition">
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Sub Header Navigation Tabs -->
+        <div class="border-b border-slate-800 bg-slate-900/30">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex overflow-x-auto gap-2 py-2">
+                <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn px-4 py-2 rounded-xl text-xs font-semibold text-indigo-400 bg-indigo-600/10 border border-indigo-500/30 transition flex items-center gap-2">
+                    <i class="fa-solid fa-chart-pie"></i> Overview
+                </button>
+                <button onclick="switchTab('attendance')" id="nav-attendance" class="nav-btn px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left"></i> Attendance Logs
+                </button>
+                <button onclick="switchTab('leaves')" id="nav-leaves" class="nav-btn px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition flex items-center gap-2 relative">
+                    <i class="fa-solid fa-envelope-open-text"></i> Leave Requests
+                    <span id="pendingLeaveBadge" class="hidden px-1.5 py-0.5 rounded-full text-[9px] bg-amber-500 text-black font-bold">0</span>
+                </button>
+                <button onclick="switchTab('sales')" id="nav-sales" class="nav-btn px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition flex items-center gap-2">
+                    <i class="fa-solid fa-file-invoice-dollar"></i> Sales Reports
+                </button>
+            </div>
+        </div>
+
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
+
+            <!-- TAB 1: OVERVIEW DASHBOARD -->
+            <section id="tab-dashboard" class="tab-content space-y-6">
+                <!-- Metrics Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl">
+                        <span class="text-slate-400 text-xs font-medium">Online Staff</span>
+                        <div class="flex items-center justify-between mt-2">
+                            <span id="metricOnlineCount" class="text-2xl font-black text-emerald-400">0</span>
+                            <i class="fa-solid fa-wifi text-emerald-500/30 text-2xl"></i>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl">
+                        <span class="text-slate-400 text-xs font-medium">Active Duty Shift</span>
+                        <div class="flex items-center justify-between mt-2">
+                            <span id="metricActiveShifts" class="text-2xl font-black text-indigo-400">0</span>
+                            <i class="fa-solid fa-user-clock text-indigo-500/30 text-2xl"></i>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl">
+                        <span class="text-slate-400 text-xs font-medium">Pending Leave Requests</span>
+                        <div class="flex items-center justify-between mt-2">
+                            <span id="metricPendingLeaves" class="text-2xl font-black text-amber-400">0</span>
+                            <i class="fa-solid fa-file-signature text-amber-500/30 text-2xl"></i>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl">
+                        <span class="text-slate-400 text-xs font-medium">Sales Reports Today</span>
+                        <div class="flex items-center justify-between mt-2">
+                            <span id="metricTodaySalesReports" class="text-2xl font-black text-sky-400">0</span>
+                            <i class="fa-solid fa-chart-line text-sky-500/30 text-2xl"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Realtime Staff Grid -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Live Presence Card -->
+                    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                        <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                            <i class="fa-solid fa-signal text-emerald-400"></i> Live Staff Connection Presence
+                        </h3>
+                        <div id="presenceContainer" class="space-y-3">
+                            <p class="text-xs text-slate-500 py-4 text-center">Monitoring live connectivity...</p>
+                        </div>
+                    </div>
+
+                    <!-- Active Shift Monitor Card -->
+                    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                        <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                            <i class="fa-solid fa-bolt text-indigo-400"></i> Active Duty Session Monitor
+                        </h3>
+                        <div id="activeShiftContainer">
+                            <p class="text-xs text-slate-500 py-4 text-center">No active duty session currently.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: ATTENDANCE LOGS -->
+            <section id="tab-attendance" class="tab-content space-y-4 hidden">
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                        <div>
+                            <h3 class="text-sm font-bold text-white uppercase tracking-wider">Staff Attendance Records</h3>
+                            <p class="text-xs text-slate-400">Master record of all staff clock-ins, clock-outs, and system auto-absents</p>
+                        </div>
+                        <input type="text" id="attendanceSearch" oninput="renderAttendanceTable()" placeholder="Search staff email or ID..." class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 w-full sm:w-64">
+                    </div>
+
+                    <div class="overflow-x-auto mt-4">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-950 text-slate-400 uppercase text-[10px] border-b border-slate-800">
+                                <tr>
+                                    <th class="p-3 font-bold">Date</th>
+                                    <th class="p-3 font-bold">Staff Member</th>
+                                    <th class="p-3 font-bold">Clock In</th>
+                                    <th class="p-3 font-bold">Clock Out</th>
+                                    <th class="p-3 font-bold">Shift Duration</th>
+                                    <th class="p-3 font-bold">Punctuality</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendanceLogsTableBody" class="divide-y divide-slate-800/60">
+                                <!-- Dynamic Rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: LEAVE REQUESTS -->
+            <section id="tab-leaves" class="tab-content space-y-4 hidden">
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-4">Leave Application Management</h3>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-950 text-slate-400 uppercase text-[10px] border-b border-slate-800">
+                                <tr>
+                                    <th class="p-3 font-bold">Applied Date</th>
+                                    <th class="p-3 font-bold">Staff</th>
+                                    <th class="p-3 font-bold">Type</th>
+                                    <th class="p-3 font-bold">Dates</th>
+                                    <th class="p-3 font-bold">Reason</th>
+                                    <th class="p-3 font-bold">Attachment</th>
+                                    <th class="p-3 font-bold">Status</th>
+                                    <th class="p-3 font-bold text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leaveRequestsTableBody" class="divide-y divide-slate-800/60">
+                                <!-- Dynamic Rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: DAILY SALES REPORTS -->
+            <section id="tab-sales" class="tab-content space-y-4 hidden">
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-4">Submitted Daily Sales & Inventory Logs</h3>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-950 text-slate-400 uppercase text-[10px] border-b border-slate-800">
+                                <tr>
+                                    <th class="p-3 font-bold">Date / Branch</th>
+                                    <th class="p-3 font-bold">Submitted By</th>
+                                    <th class="p-3 font-bold">Sales Cash</th>
+                                    <th class="p-3 font-bold">Grand Total</th>
+                                    <th class="p-3 font-bold text-right">Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="salesReportTableBody" class="divide-y divide-slate-800/60">
+                                <!-- Dynamic Rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Attachment Preview Modal -->
+    <div id="attachmentModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl p-6 shadow-2xl relative text-left">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+                <h3 class="text-sm font-bold text-white uppercase tracking-wider" id="attachmentModalTitle">Attachment Document</h3>
+                <button onclick="closeAttachmentModal()" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2">&times;</button>
+            </div>
+            <div id="attachmentViewer" class="max-h-[70vh] overflow-y-auto flex items-center justify-center bg-slate-950 rounded-xl p-4 border border-slate-800">
+                <!-- Image or iframe dynamically inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Logic -->
+    <script>
+        // 1. FIREBASE CONFIGURATION (Matching Staff Portal)
+        const firebaseConfig = {
+            apiKey: "AIzaSyD8PVd9v61cAmKoe_RjB2Wc1AswASLIFWo",
+            authDomain: "staffportal-f740f.firebaseapp.com",
+            databaseURL: "https://staffportal-f740f-default-rtdb.firebaseio.com",
+            projectId: "staffportal-f740f",
+            storageBucket: "staffportal-f740f.firebasestorage.app",
+            messagingSenderId: "739455943513",
+            appId: "1:739455943513:web:84850f115af46cafcb8248",
+            measurementId: "G-2BK6WZV8TC"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.database();
+        const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+        const ADMIN_EMAILS = ["hassanhazril@gmail.com"];
+
+        let presenceData = {};
+        let activeSessionData = null;
+        let attendanceLogs = [];
+        let leaveRequests = [];
+        let salesReports = [];
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            const bgClass = type === 'error' ? 'bg-rose-950/90 border-rose-800 text-rose-200' : 'bg-slate-900/90 border-indigo-500/30 text-slate-200';
+            const icon = type === 'error' ? 'fa-circle-xmark text-rose-400' : 'fa-circle-check text-indigo-400';
+
+            toast.className = `px-4 py-3 rounded-xl border backdrop-blur-lg shadow-2xl text-xs font-medium flex items-center gap-3 transition-all duration-300 pointer-events-auto ${bgClass}`;
+            toast.innerHTML = `<i class="fa-solid ${icon} text-sm"></i> <span>${message}</span>`;
+
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('text-indigo-400', 'bg-indigo-600/10', 'border', 'border-indigo-500/30');
+                btn.classList.add('text-slate-400');
+            });
+
+            const activeBtn = document.getElementById(`nav-${tabName}`);
+            activeBtn.classList.remove('text-slate-400');
+            activeBtn.classList.add('text-indigo-400', 'bg-indigo-600/10', 'border', 'border-indigo-500/30');
+        }
+
+        auth.onAuthStateChanged((user) => {
+            const loginView = document.getElementById('loginView');
+            const portalView = document.getElementById('portalView');
+
+            if (user) {
+                const userEmail = (user.email || '').toLowerCase();
+                if (!ADMIN_EMAILS.includes(userEmail)) {
+                    auth.signOut().then(() => {
+                        showToast(`Access Denied: ${userEmail} is not authorized for Admin portal.`, 'error');
+                    });
+                    return;
+                }
+
+                document.getElementById('adminEmailDisplay').textContent = userEmail;
+                loginView.classList.add('hidden');
+                portalView.classList.remove('hidden');
+
+                initRealtimeListeners();
+            } else {
+                portalView.classList.add('hidden');
+                loginView.classList.remove('hidden');
+            }
+        });
+
+        function handleGoogleLogin() {
+            auth.signInWithPopup(googleProvider).catch((err) => showToast(err.message, 'error'));
+        }
+
+        function handleLogout() {
+            auth.signOut().then(() => showToast("Signed out from admin portal."));
+        }
+
+        function initRealtimeListeners() {
+            // Presence
+            db.ref('presence').on('value', (snap) => {
+                presenceData = snap.val() || {};
+                renderPresenceUI();
+            });
+
+            // Active Shift Session
+            db.ref('active_session').on('value', (snap) => {
+                activeSessionData = snap.val();
+                renderActiveShiftUI();
+            });
+
+            // Attendance Logs
+            db.ref('attendance_logs').on('value', (snap) => {
+                const val = snap.val();
+                attendanceLogs = val ? Object.values(val).reverse() : [];
+                renderAttendanceTable();
+            });
+
+            // Leave Requests
+            db.ref('leave_requests').on('value', (snap) => {
+                const val = snap.val();
+                leaveRequests = [];
+                if (val) {
+                    Object.keys(val).forEach(key => {
+                        leaveRequests.push({ key, ...val[key] });
+                    });
+                    leaveRequests.reverse();
+                }
+                renderLeavesUI();
+            });
+
+            // Sales Updates
+            db.ref('sales_updates').on('value', (snap) => {
+                const val = snap.val();
+                salesReports = val ? Object.values(val).reverse() : [];
+                renderSalesUI();
+            });
+        }
+
+        function renderPresenceUI() {
+            const container = document.getElementById('presenceContainer');
+            container.innerHTML = '';
+
+            const keys = Object.keys(presenceData);
+            let onlineCount = 0;
+
+            if (keys.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-500 py-4 text-center">No staff presence data available.</p>`;
+            } else {
+                keys.forEach(uid => {
+                    const item = presenceData[uid];
+                    const isOnline = item.status === 'ONLINE';
+                    if (isOnline) onlineCount++;
+
+                    const badgeStyle = isOnline 
+                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' 
+                        : 'bg-slate-800 text-slate-400 border-slate-700';
+
+                    const row = document.createElement('div');
+                    row.className = 'p-3 bg-slate-950/60 border border-slate-800 rounded-xl flex items-center justify-between text-xs';
+                    row.innerHTML = `
+                        <div>
+                            <span class="text-slate-200 font-semibold block">${item.email || 'Staff Member'}</span>
+                            <span class="text-[10px] text-slate-500">Last seen: ${item.lastSeen ? new Date(item.lastSeen).toLocaleTimeString() : 'N/A'}</span>
+                        </div>
+                        <span class="px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase tracking-wider ${badgeStyle}">
+                            ${item.status || 'OFFLINE'}
+                        </span>
+                    `;
+                    container.appendChild(row);
+                });
+            }
+
+            document.getElementById('metricOnlineCount').textContent = onlineCount;
+        }
+
+        function renderActiveShiftUI() {
+            const container = document.getElementById('activeShiftContainer');
+            if (!container) return;
+
+            if (activeSessionData && activeSessionData.clockInTime) {
+                document.getElementById('metricActiveShifts').textContent = "1";
+                const startTime = new Date(activeSessionData.clockInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                container.innerHTML = `
+                    <div class="p-4 bg-indigo-950/30 border border-indigo-500/30 rounded-2xl text-xs space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-white text-sm">${activeSessionData.empName || 'Staff'}</span>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-lime-500/20 text-lime-400 border border-lime-500/40 animate-pulse">ON DUTY</span>
+                        </div>
+                        <p class="text-slate-400">Email: <span class="text-slate-200">${activeSessionData.userEmail || '--'}</span></p>
+                        <p class="text-slate-400">Clocked In At: <span class="text-slate-200 font-mono">${startTime}</span></p>
+                        <p class="text-slate-400">Punctuality: <span class="text-emerald-400 font-semibold">${activeSessionData.punctualityStatus || 'ON TIME'}</span></p>
+                    </div>
+                `;
+            } else {
+                document.getElementById('metricActiveShifts').textContent = "0";
+                container.innerHTML = `<p class="text-xs text-slate-500 py-4 text-center">No active shift currently in progress.</p>`;
+            }
+        }
+
+        function renderAttendanceTable() {
+            const tbody = document.getElementById('attendanceLogsTableBody');
+            const search = (document.getElementById('attendanceSearch')?.value || '').toLowerCase();
+            tbody.innerHTML = '';
+
+            const filtered = attendanceLogs.filter(log => {
+                const name = (log.empName || '').toLowerCase();
+                const email = (log.userEmail || '').toLowerCase();
+                const id = (log.empId || '').toLowerCase();
+                return name.includes(search) || email.includes(search) || id.includes(search);
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500 text-xs">No matching attendance logs found.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(log => {
+                const isAbsent = log.punctualityStatus === 'ABSENT' || log.statusColor === 'red';
+                const badgeClass = isAbsent ? 'bg-rose-500/20 text-rose-400 border-rose-500/40' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
+
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-slate-900/50 transition';
+                row.innerHTML = `
+                    <td class="p-3 text-slate-300 font-mono text-[11px]">${log.date || '--'}</td>
+                    <td class="p-3">
+                        <span class="font-semibold text-slate-200 block">${log.empName || 'Staff'}</span>
+                        <span class="text-[10px] text-slate-500">${log.userEmail || ''}</span>
+                    </td>
+                    <td class="p-3 font-mono text-slate-300">${log.clockIn || '--'}</td>
+                    <td class="p-3 font-mono text-slate-300">${log.clockOut || '--'}</td>
+                    <td class="p-3 text-slate-400">${log.durationText || '--'}</td>
+                    <td class="p-3">
+                        <span class="px-2 py-0.5 rounded-full text-[9px] font-bold border ${badgeClass}">
+                            ${log.punctualityStatus || 'ON TIME'}
+                        </span>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function renderLeavesUI() {
+            const tbody = document.getElementById('leaveRequestsTableBody');
+            const pendingBadge = document.getElementById('pendingLeaveBadge');
+            tbody.innerHTML = '';
+
+            let pendingCount = 0;
+
+            if (leaveRequests.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="p-4 text-center text-slate-500 text-xs">No leave requests submitted yet.</td></tr>`;
+            } else {
+                leaveRequests.forEach(req => {
+                    if (req.status === 'PENDING') pendingCount++;
+
+                    let statusBadge = 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+                    if (req.status === 'APPROVED') statusBadge = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
+                    if (req.status === 'REJECTED') statusBadge = 'bg-rose-500/20 text-rose-400 border-rose-500/40';
+
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-slate-900/50 transition';
+                    row.innerHTML = `
+                        <td class="p-3 text-slate-400 text-[11px]">${req.appliedAt ? new Date(req.appliedAt).toLocaleDateString() : '--'}</td>
+                        <td class="p-3">
+                            <span class="font-semibold text-slate-200 block">${req.empName || 'Staff'}</span>
+                            <span class="text-[10px] text-slate-500">${req.userEmail || ''}</span>
+                        </td>
+                        <td class="p-3 text-indigo-400 font-semibold uppercase text-[10px]">${req.leaveType || 'Leave'}</td>
+                        <td class="p-3 font-mono text-[11px] text-slate-300">${req.startDate} to ${req.endDate}</td>
+                        <td class="p-3 text-slate-300 max-w-xs truncate" title="${req.reason || ''}">${req.reason || '--'}</td>
+                        <td class="p-3">
+                            ${req.hasAttachment && req.mcBase64 ? `
+                                <button onclick="viewAttachment('${req.key}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-indigo-400 text-[10px] font-semibold border border-slate-700">
+                                    <i class="fa-solid fa-paperclip"></i> View File
+                                </button>
+                            ` : '<span class="text-slate-600 text-[10px]">None</span>'}
+                        </td>
+                        <td class="p-3">
+                            <span class="px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase ${statusBadge}">
+                                ${req.status || 'PENDING'}
+                            </span>
+                        </td>
+                        <td class="p-3 text-right space-x-1">
+                            ${req.status === 'PENDING' ? `
+                                <button onclick="updateLeaveStatus('${req.key}', 'APPROVED')" class="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold shadow">Approve</button>
+                                <button onclick="updateLeaveStatus('${req.key}', 'REJECTED')" class="px-2 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold shadow">Reject</button>
+                            ` : '<span class="text-slate-600 text-[10px]">Decided</span>'}
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+
+            document.getElementById('metricPendingLeaves').textContent = pendingCount;
+            if (pendingCount > 0) {
+                pendingBadge.textContent = pendingCount;
+                pendingBadge.classList.remove('hidden');
+            } else {
+                pendingBadge.classList.add('hidden');
+            }
+        }
+
+        function updateLeaveStatus(key, status) {
+            db.ref(`leave_requests/${key}/status`).set(status).then(() => {
+                showToast(`Leave request updated to ${status}.`);
+            }).catch(err => showToast(err.message, 'error'));
+        }
+
+        function viewAttachment(key) {
+            const req = leaveRequests.find(r => r.key === key);
+            if (!req || !req.mcBase64) return;
+
+            const modal = document.getElementById('attachmentModal');
+            const viewer = document.getElementById('attachmentViewer');
+            document.getElementById('attachmentModalTitle').textContent = `Attachment: ${req.mcFileName || 'Document'}`;
+
+            if (req.mcBase64.startsWith('data:image/')) {
+                viewer.innerHTML = `<img src="${req.mcBase64}" class="max-w-full h-auto rounded-lg shadow-lg">`;
+            } else if (req.mcBase64.startsWith('data:application/pdf')) {
+                viewer.innerHTML = `<iframe src="${req.mcBase64}" class="w-full h-[60vh] rounded-lg"></iframe>`;
+            } else {
+                viewer.innerHTML = `<a href="${req.mcBase64}" download="${req.mcFileName || 'attachment'}" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">Download Attachment</a>`;
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeAttachmentModal() {
+            document.getElementById('attachmentModal').classList.add('hidden');
+        }
+
+        function renderSalesUI() {
+            const tbody = document.getElementById('salesReportTableBody');
+            tbody.innerHTML = '';
+
+            const todayStr = new Date().toISOString().slice(0, 10);
+            let todayReportsCount = 0;
+
+            if (salesReports.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-500 text-xs">No sales reports submitted.</td></tr>`;
+            } else {
+                salesReports.forEach(report => {
+                    if (report.date === todayStr) todayReportsCount++;
+
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-slate-900/50 transition';
+                    row.innerHTML = `
+                        <td class="p-3">
+                            <span class="font-bold text-slate-200 block">${report.cawangan || 'Branch'}</span>
+                            <span class="text-[10px] text-slate-500 font-mono">${report.date || '--'}</span>
+                        </td>
+                        <td class="p-3 text-slate-300">${report.submittedBy || 'Staff'}</td>
+                        <td class="p-3 font-mono text-slate-300">RM ${parseFloat(report.salesCash || 0).toFixed(2)}</td>
+                        <td class="p-3 font-mono text-emerald-400 font-bold">RM ${parseFloat(report.totalDailySales || 0).toFixed(2)}</td>
+                        <td class="p-3 text-right">
+                            <button onclick="alert('Catatan: ${report.catatan || 'None'}')" class="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] border border-slate-700">
+                                Notes
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+
+            document.getElementById('metricTodaySalesReports').textContent = todayReportsCount;
+        }
+    </script>
+</body>
+</html>
