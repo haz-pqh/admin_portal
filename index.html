@@ -253,7 +253,7 @@
                     <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
                         <div>
                             <h3 class="text-sm font-bold text-white uppercase tracking-wider">Submitted Daily Sales & Inventory Logs</h3>
-                            <p class="text-xs text-slate-400">View and update daily branch sales reports and inventory notes</p>
+                            <p class="text-xs text-slate-400">Edit detailed sales metrics, inventory stocks, and view live calculated totals</p>
                         </div>
                     </div>
                     <div class="overflow-x-auto">
@@ -262,6 +262,7 @@
                                 <tr>
                                     <th class="p-3 font-bold">Date / Branch</th>
                                     <th class="p-3 font-bold">Submitted By</th>
+                                    <th class="p-3 font-bold">Bag Ayam</th>
                                     <th class="p-3 font-bold">Sales Cash</th>
                                     <th class="p-3 font-bold">Grand Total</th>
                                     <th class="p-3 font-bold text-right">Actions</th>
@@ -301,14 +302,12 @@
                     <input type="text" id="branchName" required placeholder="e.g. Ampang Utama Branch" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
                 </div>
 
-                <!-- Free OpenStreetMap / Photon Address Search (Restricted to Malaysia) -->
                 <div class="relative">
                     <div class="flex items-center justify-between mb-1">
                         <label class="block text-slate-400 font-medium">Search Location / Address (Malaysia)</label>
                         <i class="fa-solid fa-location-dot text-emerald-400"></i>
                     </div>
                     <input type="text" id="branchAddress" required placeholder="Start typing address, street, or city in Malaysia..." autocomplete="off" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
-                    <!-- Dropdown Suggestions Container -->
                     <ul id="addressSuggestions" class="absolute left-0 right-0 top-full mt-1 bg-slate-900 border border-slate-800 rounded-xl max-h-48 overflow-y-auto z-50 hidden shadow-2xl divide-y divide-slate-800/60"></ul>
                 </div>
 
@@ -328,51 +327,240 @@
         </div>
     </div>
 
-    <!-- Sales & Inventory Log Edit Modal -->
-    <div id="salesModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl relative text-left">
-            <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
-                <h3 class="text-sm font-bold text-white uppercase tracking-wider">Edit Sales & Inventory Log</h3>
+    <!-- EXPANDED FULL SALES & INVENTORY EDIT MODAL -->
+    <div id="salesModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl p-6 shadow-2xl relative text-left my-8 max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+                <div>
+                    <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-calculator text-indigo-400"></i> Edit Full Sales & Inventory Log
+                    </h3>
+                    <p class="text-[11px] text-slate-400">Edit raw metrics to trigger automatic real-time Grand Total calculation.</p>
+                </div>
                 <button onclick="closeSalesModal()" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2">&times;</button>
             </div>
-            <form id="salesForm" onsubmit="handleSalesSubmit(event)" class="space-y-4 text-xs">
+
+            <form id="salesForm" onsubmit="handleSalesSubmit(event)" class="space-y-6 text-xs overflow-y-auto pt-4 pr-1">
                 <input type="hidden" id="salesKey">
                 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- SECTION 1: HEADER & BRANCH INFO -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-950/50 p-3.5 rounded-xl border border-slate-800">
                     <div>
                         <label class="block text-slate-400 mb-1 font-medium">Branch / Cawangan</label>
-                        <input type="text" id="salesCawangan" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
+                        <input type="text" id="salesCawangan" required class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
                     </div>
                     <div>
                         <label class="block text-slate-400 mb-1 font-medium">Date</label>
-                        <input type="text" id="salesDate" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
+                        <input type="text" id="salesDate" required class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1 font-medium">Submitted By</label>
+                        <input type="text" id="salesSubmittedBy" required class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+
+                <!-- SECTION 2: RAW CHICKEN & PLATFORM REVENUES -->
+                <div class="space-y-3">
+                    <h4 class="text-[11px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <i class="fa-solid fa-drumstick-bite"></i> 1. Raw Chicken & Food Platform Revenue
+                    </h4>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                        <div class="col-span-2 sm:col-span-1">
+                            <label class="block text-slate-400 mb-1 font-medium">Bag Ayam (Bags)</label>
+                            <input type="number" step="0.1" id="salesBagAyam" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-amber-300 font-mono focus:border-indigo-500">
+                            <span class="text-[9px] text-slate-500 mt-0.5 block">1 bag = 20 pcs @ RM4.50</span>
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-medium">Misi (RM)</label>
+                            <input type="number" step="0.01" id="salesMisi" oninput="recalculateSales()" placeholder="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-medium">Lalamove (RM)</label>
+                            <input type="number" step="0.01" id="salesLalamove" oninput="recalculateSales()" placeholder="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-medium">Food Panda (RM)</label>
+                            <input type="number" step="0.01" id="salesFoodPanda" oninput="recalculateSales()" placeholder="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-medium">Grab Food (RM)</label>
+                            <input type="number" step="0.01" id="salesGrabFood" oninput="recalculateSales()" placeholder="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-medium">Shopee Food (RM)</label>
+                            <input type="number" step="0.01" id="salesShopeeFood" oninput="recalculateSales()" placeholder="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono focus:border-indigo-500">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 3: SAUCE & COLESLAW INVENTORY -->
+                <div class="space-y-3">
+                    <h4 class="text-[11px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <i class="fa-solid fa-boxes-stacked"></i> 2. Flavor & Item Inventory Calculations
+                    </h4>
+                    
+                    <!-- CKG -->
+                    <div class="bg-slate-950/40 p-3 rounded-xl border border-slate-800/80 space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-slate-300">Cheese & Korean & Garlic (CKG)</span>
+                            <span class="text-[10px] text-slate-400">Price: <strong class="text-indigo-300">RM2.00/cup</strong></span>
+                        </div>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <input type="number" id="ckgPrev" oninput="recalculateSales()" placeholder="Prev Stock" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono">
+                            <input type="number" id="ckgNew" oninput="recalculateSales()" placeholder="New Stock" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono">
+                            <input type="number" id="ckgPromoFree" oninput="recalculateSales()" placeholder="Promo Free" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono">
+                            <input type="number" id="ckgBalance" oninput="recalculateSales()" placeholder="Balance" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono">
+                        </div>
+                        <div class="text-right text-[11px] text-slate-400">
+                            CKG Sale: <span id="ckgTotalDisplay" class="font-bold text-emerald-400 font-mono">RM 0.00</span>
+                        </div>
+                    </div>
+
+                    <!-- TF -->
+                    <div class="bg-slate-950/40 p-3 rounded-xl border border-slate-800/80 space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-slate-300">Furikake & Togarashi (T&F)</span>
+                            <span class="text-[10px] text-slate-400">Price: <strong class="text-indigo-300">RM3.00/cup</strong></span>
+                        </div>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <input type="number" id="tfPrev" oninput="recalculateSales()" placeholder="Prev Stock" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono">
+                            <input type="number" id="tfNew" oninput="recalculateSales()" placeholder="New Stock" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono">
+                            <input type="number" id="tfPromoFree" oninput="recalculateSales()" placeholder="Promo Free" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono">
+                            <input type="number" id="tfBalance" oninput="recalculateSales()" placeholder="Balance" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono">
+                        </div>
+                        <div class="text-right text-[11px] text-slate-400">
+                            T&F Sale: <span id="tfTotalDisplay" class="font-bold text-emerald-400 font-mono">RM 0.00</span>
+                        </div>
+                    </div>
+
+                    <!-- Coleslaw -->
+                    <div class="bg-slate-950/40 p-3 rounded-xl border border-slate-800/80 space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-slate-300">Coleslaw</span>
+                            <span class="text-[10px] text-slate-400">Price: <strong class="text-indigo-300">RM3.50/cup (2 cups = RM6.50)</strong></span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="number" id="coleslawNew" oninput="recalculateSales()" placeholder="New Stock" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono">
+                            <input type="number" id="coleslawBalance" oninput="recalculateSales()" placeholder="Balance" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono">
+                        </div>
+                        <div class="text-right text-[11px] text-slate-400">
+                            Coleslaw Sale: <span id="coleslawTotalDisplay" class="font-bold text-emerald-400 font-mono">RM 0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 4: PROMO & DEDUCTIONS / EXPENSES -->
+                <div class="space-y-3">
+                    <h4 class="text-[11px] font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <i class="fa-solid fa-receipt"></i> 3. Promos & Deductions / Operating Expenses
+                    </h4>
+                    
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-medium">Promo 10pcs Ayam (Qty)</label>
+                            <input type="number" id="salesPromo10pcs" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-indigo-300 font-mono">
+                            <span class="text-[9px] text-slate-500">RM53.90 / set</span>
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-medium">Minyak Masak (Packs)</label>
+                            <input type="number" id="salesMinyakMasak" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-rose-300 font-mono">
+                            <span class="text-[9px] text-slate-500">RM5.00 / pack</span>
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-medium">Staff Meal (Pcs)</label>
+                            <input type="number" id="salesStaffMeal" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-rose-300 font-mono">
+                            <span class="text-[9px] text-slate-500">Max 2 pcs/staff (@RM4.50)</span>
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-medium">Ayam Tak Habis (Pcs)</label>
+                            <input type="number" id="salesAyamTakHabis" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-rose-300 font-mono">
+                            <span class="text-[9px] text-slate-500">@RM4.50 / pc</span>
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-medium">Ayam Busuk (Pcs)</label>
+                            <input type="number" id="salesAyamBusuk" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-rose-300 font-mono">
+                            <span class="text-[9px] text-slate-500">@RM4.50 / pc</span>
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-medium">Ayam Short (Pcs)</label>
+                            <input type="number" id="salesAyamShort" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-rose-300 font-mono">
+                            <span class="text-[9px] text-slate-500">@RM4.50 / pc</span>
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-medium">Review (Pcs)</label>
+                            <input type="number" id="salesReview" oninput="recalculateSales()" placeholder="0" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-rose-300 font-mono">
+                            <span class="text-[9px] text-slate-500">@RM4.50 / pc</span>
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-medium">Loyal Kad (RM)</label>
+                            <input type="number" step="0.01" id="salesLoyalKad" oninput="recalculateSales()" placeholder="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-rose-300 font-mono">
+                        </div>
+                    </div>
+
+                    <!-- Direct Financial Deductions -->
+                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2">
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-medium">Gas (RM)</label>
+                            <input type="number" step="0.01" id="salesGas" oninput="recalculateSales()" placeholder="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-white font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-medium">Ais (RM)</label>
+                            <input type="number" step="0.01" id="salesAis" oninput="recalculateSales()" placeholder="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-white font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-medium">Beli Barang (RM)</label>
+                            <input type="number" step="0.01" id="salesBeliBarang" oninput="recalculateSales()" placeholder="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-white font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-medium">Minyak Kenderaan (RM)</label>
+                            <input type="number" step="0.01" id="salesMinyakKenderaan" oninput="recalculateSales()" placeholder="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-white font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-medium">Dobi (RM)</label>
+                            <input type="number" step="0.01" id="salesDobi" oninput="recalculateSales()" placeholder="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-white font-mono">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 5: LIVE GRAND TOTAL SUMMARY PANEL -->
+                <div class="bg-indigo-950/40 border border-indigo-500/40 p-4 rounded-2xl space-y-3">
+                    <div class="flex items-center justify-between border-b border-indigo-500/20 pb-2">
+                        <span class="text-xs font-bold text-indigo-300 uppercase tracking-wider">Calculation Breakdown Summary</span>
+                        <span class="text-[10px] text-emerald-400 font-mono"><i class="fa-solid fa-sync fa-spin"></i> Live Calculating</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-[11px]">
+                        <div class="space-y-1 text-slate-300">
+                            <div class="flex justify-between"><span>Bag Ayam Sales:</span><span id="dispAyamSales" class="font-mono font-semibold">RM 0.00</span></div>
+                            <div class="flex justify-between"><span>Platform Deliveries:</span><span id="dispPlatformSales" class="font-mono font-semibold">RM 0.00</span></div>
+                            <div class="flex justify-between"><span>Flavors (CKG + T&F + Coleslaw):</span><span id="dispFlavorSales" class="font-mono font-semibold">RM 0.00</span></div>
+                            <div class="flex justify-between"><span>Promo 10pcs Ayam:</span><span id="dispPromoSales" class="font-mono font-semibold">RM 0.00</span></div>
+                        </div>
+
+                        <div class="space-y-1 text-slate-300 border-t sm:border-t-0 sm:border-l border-indigo-500/20 pt-2 sm:pt-0 sm:pl-4">
+                            <div class="flex justify-between text-rose-300"><span>Operating Expenses / Deductions:</span><span id="dispTotalDeductions" class="font-mono font-semibold">RM 0.00</span></div>
+                            <div class="flex justify-between text-indigo-200"><span>Sales Cash Input:</span>
+                                <input type="number" step="0.01" id="salesCash" placeholder="0.00" class="w-24 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-right font-mono text-white">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-2 border-t border-indigo-500/30 flex flex-col sm:flex-row items-center justify-between gap-2">
+                        <span class="text-xs font-black text-white uppercase tracking-wider">Calculated Grand Total Sales</span>
+                        <span id="grandTotalDisplay" class="text-2xl font-black text-emerald-400 font-mono">RM 0.00</span>
                     </div>
                 </div>
 
                 <div>
-                    <label class="block text-slate-400 mb-1 font-medium">Submitted By</label>
-                    <input type="text" id="salesSubmittedBy" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
+                    <label class="block text-slate-400 mb-1 font-medium">Catatan / Additional Inventory Notes</label>
+                    <textarea id="salesCatatan" rows="2" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500 placeholder-slate-600" placeholder="Enter inventory remarks..."></textarea>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-slate-400 mb-1 font-medium">Sales Cash (RM)</label>
-                        <input type="number" step="0.01" id="salesCash" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-indigo-500">
-                    </div>
-                    <div>
-                        <label class="block text-slate-400 mb-1 font-medium">Grand Total Sales (RM)</label>
-                        <input type="number" step="0.01" id="salesTotal" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-indigo-500">
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-slate-400 mb-1 font-medium">Catatan / Inventory Notes</label>
-                    <textarea id="salesCatatan" rows="3" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500 placeholder-slate-600" placeholder="Enter inventory or additional sales remarks..."></textarea>
-                </div>
-
-                <div class="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                <div class="flex justify-end gap-2 pt-3 border-t border-slate-800 shrink-0">
                     <button type="button" onclick="closeSalesModal()" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl font-semibold hover:bg-slate-700">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-500 shadow-lg shadow-indigo-600/20">Update Record</button>
+                    <button type="submit" class="px-5 py-2 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-500 shadow-lg shadow-indigo-600/20 flex items-center gap-2">
+                        <i class="fa-solid fa-floppy-disk"></i> Save & Update Log
+                    </button>
                 </div>
             </form>
         </div>
@@ -385,9 +573,7 @@
                 <h3 class="text-sm font-bold text-white uppercase tracking-wider" id="attachmentModalTitle">Attachment Document</h3>
                 <button onclick="closeAttachmentModal()" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2">&times;</button>
             </div>
-            <div id="attachmentViewer" class="max-h-[70vh] overflow-y-auto flex items-center justify-center bg-slate-950 rounded-xl p-4 border border-slate-800">
-                <!-- Image or iframe dynamically inserted here -->
-            </div>
+            <div id="attachmentViewer" class="max-h-[70vh] overflow-y-auto flex items-center justify-center bg-slate-950 rounded-xl p-4 border border-slate-800"></div>
         </div>
     </div>
 
@@ -421,7 +607,6 @@
 
         let debounceTimer;
 
-        // OpenStreetMap / Photon Autocomplete Logic (Restricted to Malaysia: countrycode=MY)
         document.addEventListener('DOMContentLoaded', () => {
             const addressInput = document.getElementById('branchAddress');
             const suggestionsList = document.getElementById('addressSuggestions');
@@ -437,7 +622,6 @@
                 }
 
                 debounceTimer = setTimeout(() => {
-                    // Added &countrycode=MY parameter to restrict results to Malaysia
                     fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&countrycode=MY`)
                         .then(res => res.json())
                         .then(data => {
@@ -475,7 +659,6 @@
                 }, 300);
             });
 
-            // Close suggestions when clicking outside
             document.addEventListener('click', (e) => {
                 if (!addressInput.contains(e.target) && !suggestionsList.contains(e.target)) {
                     suggestionsList.classList.add('hidden');
@@ -483,7 +666,6 @@
             });
         });
 
-        // Generate Automated Branch Code
         function generateAutoBranchCode() {
             const prefix = "BR-";
             const nextNum = (branchesList.length + 1).toString().padStart(3, '0');
@@ -899,13 +1081,101 @@
             document.getElementById('attachmentModal').classList.add('hidden');
         }
 
-        /* SALES & INVENTORY REPORT MANAGEMENT FUNCTIONS */
+        /* ==================== ADVANCED SALES & INVENTORY FORMULA LOGIC ==================== */
+
+        function getNum(elementId) {
+            const val = parseFloat(document.getElementById(elementId)?.value || 0);
+            return isNaN(val) ? 0 : val;
+        }
+
+        function recalculateSales() {
+            // 1 Bag Ayam = 20 pcs. 1 pc = RM 4.50
+            const bagAyam = getNum('salesBagAyam');
+            const totalAyamPcs = bagAyam * 20;
+            const ayamSales = totalAyamPcs * 4.50;
+
+            // Food Platforms
+            const misi = getNum('salesMisi');
+            const lalamove = getNum('salesLalamove');
+            const foodPanda = getNum('salesFoodPanda');
+            const grabFood = getNum('salesGrabFood');
+            const shopeeFood = getNum('salesShopeeFood');
+            const platformSales = misi + lalamove + foodPanda + grabFood + shopeeFood;
+
+            // Cheese & Korean & Garlic -> ((prev stock + new stock) - (promo free + balance)) * 2.00
+            const ckgPrev = getNum('ckgPrev');
+            const ckgNew = getNum('ckgNew');
+            const ckgPromo = getNum('ckgPromoFree');
+            const ckgBal = getNum('ckgBalance');
+            const ckgCupsSold = Math.max(0, (ckgPrev + ckgNew) - (ckgPromo + ckgBal));
+            const ckgTotalSale = ckgCupsSold * 2.00;
+            document.getElementById('ckgTotalDisplay').textContent = `RM ${ckgTotalSale.toFixed(2)}`;
+
+            // Furikake & Togarashi -> ((prev stock + new stock) - (promo free + balance)) * 3.00
+            const tfPrev = getNum('tfPrev');
+            const tfNew = getNum('tfNew');
+            const tfPromo = getNum('tfPromoFree');
+            const tfBal = getNum('tfBalance');
+            const tfCupsSold = Math.max(0, (tfPrev + tfNew) - (tfPromo + tfBal));
+            const tfTotalSale = tfCupsSold * 3.00;
+            document.getElementById('tfTotalDisplay').textContent = `RM ${tfTotalSale.toFixed(2)}`;
+
+            // Coleslaw -> (new stock - balance). Pricing: 2 cups = RM 6.50, Single = RM 3.50
+            const coleslawNew = getNum('coleslawNew');
+            const coleslawBal = getNum('coleslawBalance');
+            const coleslawSold = Math.max(0, coleslawNew - coleslawBal);
+            const coleslawPairs = Math.floor(coleslawSold / 2);
+            const coleslawRem = coleslawSold % 2;
+            const coleslawTotalSale = (coleslawPairs * 6.50) + (coleslawRem * 3.50);
+            document.getElementById('coleslawTotalDisplay').textContent = `RM ${coleslawTotalSale.toFixed(2)}`;
+
+            // Promo 10pcs Ayam -> RM 53.90/one
+            const promo10pcsQty = getNum('salesPromo10pcs');
+            const promo10pcsTotal = promo10pcsQty * 53.90;
+
+            // Expenses & Deductions
+            const gas = getNum('salesGas');
+            const ais = getNum('salesAis');
+            const beliBarang = getNum('salesBeliBarang');
+            const minyakKenderaan = getNum('salesMinyakKenderaan');
+            const dobi = getNum('salesDobi');
+            const minyakMasakPacks = getNum('salesMinyakMasak'); // RM5.00/pack
+            const minyakMasakDeduction = minyakMasakPacks * 5.00;
+
+            const staffMealPcs = getNum('salesStaffMeal'); // RM4.50/pc
+            const ayamTakHabisPcs = getNum('salesAyamTakHabis'); // RM4.50/pc
+            const ayamBusukPcs = getNum('salesAyamBusuk'); // RM4.50/pc
+            const ayamShortPcs = getNum('salesAyamShort'); // RM4.50/pc
+            const reviewPcs = getNum('salesReview'); // RM4.50/pc
+            const loyalKad = getNum('salesLoyalKad');
+
+            const chickenLossDeduction = (staffMealPcs + ayamTakHabisPcs + ayamBusukPcs + ayamShortPcs + reviewPcs) * 4.50;
+            const totalDeductions = gas + ais + beliBarang + minyakKenderaan + dobi + minyakMasakDeduction + chickenLossDeduction + loyalKad;
+
+            // Grand Total Calculation Formula:
+            // ((total bag * 4.50) + Misi + Lalamove + Food Panda + Grab Food + Shopee Food) - Deductions + CKG + TF + Coleslaw + Promo 10pcs
+            const grandTotal = (ayamSales + platformSales) - totalDeductions + ckgTotalSale + tfTotalSale + coleslawTotalSale + promo10pcsTotal;
+
+            // UI Summary Display Updates
+            document.getElementById('dispAyamSales').textContent = `RM ${ayamSales.toFixed(2)}`;
+            document.getElementById('dispPlatformSales').textContent = `RM ${platformSales.toFixed(2)}`;
+            document.getElementById('dispFlavorSales').textContent = `RM ${(ckgTotalSale + tfTotalSale + coleslawTotalSale).toFixed(2)}`;
+            document.getElementById('dispPromoSales').textContent = `RM ${promo10pcsTotal.toFixed(2)}`;
+            document.getElementById('dispTotalDeductions').textContent = `- RM ${totalDeductions.toFixed(2)}`;
+            document.getElementById('grandTotalDisplay').textContent = `RM ${grandTotal.toFixed(2)}`;
+
+            return {
+                ayamSales, platformSales, ckgTotalSale, tfTotalSale, coleslawTotalSale,
+                promo10pcsTotal, totalDeductions, grandTotal
+            };
+        }
+
         function renderSalesUI() {
             const tbody = document.getElementById('salesReportTableBody');
             tbody.innerHTML = '';
 
             if (salesReports.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-500 text-xs">No sales reports submitted.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500 text-xs">No sales reports submitted.</td></tr>`;
             } else {
                 salesReports.forEach(report => {
                     const row = document.createElement('tr');
@@ -916,6 +1186,7 @@
                             <span class="text-[10px] text-slate-500 font-mono">${report.date || '--'}</span>
                         </td>
                         <td class="p-3 text-slate-300">${report.submittedBy || 'Staff'}</td>
+                        <td class="p-3 font-mono text-amber-300 font-semibold">${report.bagAyam || 0} bags</td>
                         <td class="p-3 font-mono text-slate-300">RM ${parseFloat(report.salesCash || 0).toFixed(2)}</td>
                         <td class="p-3 font-mono text-emerald-400 font-bold">RM ${parseFloat(report.totalDailySales || 0).toFixed(2)}</td>
                         <td class="p-3 text-right space-x-1">
@@ -940,10 +1211,46 @@
             document.getElementById('salesCawangan').value = report.cawangan || '';
             document.getElementById('salesDate').value = report.date || '';
             document.getElementById('salesSubmittedBy').value = report.submittedBy || '';
+            document.getElementById('salesBagAyam').value = report.bagAyam || 0;
+
+            document.getElementById('salesMisi').value = report.misi || 0;
+            document.getElementById('salesLalamove').value = report.lalamove || 0;
+            document.getElementById('salesFoodPanda').value = report.foodPanda || 0;
+            document.getElementById('salesGrabFood').value = report.grabFood || 0;
+            document.getElementById('salesShopeeFood').value = report.shopeeFood || 0;
+
+            document.getElementById('ckgPrev').value = report.ckgPrev || 0;
+            document.getElementById('ckgNew').value = report.ckgNew || 0;
+            document.getElementById('ckgPromoFree').value = report.ckgPromoFree || 0;
+            document.getElementById('ckgBalance').value = report.ckgBalance || 0;
+
+            document.getElementById('tfPrev').value = report.tfPrev || 0;
+            document.getElementById('tfNew').value = report.tfNew || 0;
+            document.getElementById('tfPromoFree').value = report.tfPromoFree || 0;
+            document.getElementById('tfBalance').value = report.tfBalance || 0;
+
+            document.getElementById('coleslawNew').value = report.coleslawNew || 0;
+            document.getElementById('coleslawBalance').value = report.coleslawBalance || 0;
+
+            document.getElementById('salesPromo10pcs').value = report.promo10pcs || 0;
+            document.getElementById('salesMinyakMasak').value = report.minyakMasakPacks || 0;
+            document.getElementById('salesStaffMeal').value = report.staffMealPcs || 0;
+            document.getElementById('salesAyamTakHabis').value = report.ayamTakHabisPcs || 0;
+            document.getElementById('salesAyamBusuk').value = report.ayamBusukPcs || 0;
+            document.getElementById('salesAyamShort').value = report.ayamShortPcs || 0;
+            document.getElementById('salesReview').value = report.reviewPcs || 0;
+            document.getElementById('salesLoyalKad').value = report.loyalKad || 0;
+
+            document.getElementById('salesGas').value = report.gas || 0;
+            document.getElementById('salesAis').value = report.ais || 0;
+            document.getElementById('salesBeliBarang').value = report.beliBarang || 0;
+            document.getElementById('salesMinyakKenderaan').value = report.minyakKenderaan || 0;
+            document.getElementById('salesDobi').value = report.dobi || 0;
+
             document.getElementById('salesCash').value = report.salesCash || 0;
-            document.getElementById('salesTotal').value = report.totalDailySales || 0;
             document.getElementById('salesCatatan').value = report.catatan || '';
 
+            recalculateSales();
             document.getElementById('salesModal').classList.remove('hidden');
         }
 
@@ -956,18 +1263,59 @@
             const key = document.getElementById('salesKey').value;
             if (!key) return;
 
+            const calc = recalculateSales();
+
             const updatedData = {
                 cawangan: document.getElementById('salesCawangan').value.trim(),
                 date: document.getElementById('salesDate').value.trim(),
                 submittedBy: document.getElementById('salesSubmittedBy').value.trim(),
-                salesCash: parseFloat(document.getElementById('salesCash').value || 0),
-                totalDailySales: parseFloat(document.getElementById('salesTotal').value || 0),
+                bagAyam: getNum('salesBagAyam'),
+
+                misi: getNum('salesMisi'),
+                lalamove: getNum('salesLalamove'),
+                foodPanda: getNum('salesFoodPanda'),
+                grabFood: getNum('salesGrabFood'),
+                shopeeFood: getNum('salesShopeeFood'),
+
+                ckgPrev: getNum('ckgPrev'),
+                ckgNew: getNum('ckgNew'),
+                ckgPromoFree: getNum('ckgPromoFree'),
+                ckgBalance: getNum('ckgBalance'),
+                ckgTotalSale: calc.ckgTotalSale,
+
+                tfPrev: getNum('tfPrev'),
+                tfNew: getNum('tfNew'),
+                tfPromoFree: getNum('tfPromoFree'),
+                tfBalance: getNum('tfBalance'),
+                tfTotalSale: calc.tfTotalSale,
+
+                coleslawNew: getNum('coleslawNew'),
+                coleslawBalance: getNum('coleslawBalance'),
+                coleslawTotalSale: calc.coleslawTotalSale,
+
+                promo10pcs: getNum('salesPromo10pcs'),
+                minyakMasakPacks: getNum('salesMinyakMasak'),
+                staffMealPcs: getNum('salesStaffMeal'),
+                ayamTakHabisPcs: getNum('salesAyamTakHabis'),
+                ayamBusukPcs: getNum('salesAyamBusuk'),
+                ayamShortPcs: getNum('salesAyamShort'),
+                reviewPcs: getNum('salesReview'),
+                loyalKad: getNum('salesLoyalKad'),
+
+                gas: getNum('salesGas'),
+                ais: getNum('salesAis'),
+                beliBarang: getNum('salesBeliBarang'),
+                minyakKenderaan: getNum('salesMinyakKenderaan'),
+                dobi: getNum('salesDobi'),
+
+                salesCash: getNum('salesCash'),
+                totalDailySales: calc.grandTotal,
                 catatan: document.getElementById('salesCatatan').value.trim(),
                 updatedAt: Date.now()
             };
 
             db.ref(`sales_updates/${key}`).update(updatedData).then(() => {
-                showToast("Sales & inventory log updated successfully.");
+                showToast("Sales log & inventory calculation updated successfully.");
                 closeSalesModal();
             }).catch(err => {
                 showToast(err.message, 'error');
