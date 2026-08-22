@@ -378,6 +378,47 @@
                 </div>
             </section>
 
+            <section id="tab-payslips" class="tab-content hidden space-y-6">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+                    <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-cloud-arrow-up text-indigo-400"></i> Upload Staff Payslip
+                        </h3>
+                        <span class="text-[10px] text-slate-400 bg-slate-800 px-2.5 py-1 rounded-lg">Admin Management</span>
+                    </div>
+
+                    <form id="payslipUploadForm" onsubmit="handlePayslipSubmit(event)" class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1">Select Staff Member *</label>
+                                <select id="payslipStaffSelect" required class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500">
+                                    <option value="">Select Staff Member</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1">Pay Period *</label>
+                                <input type="month" id="payslipPeriod" required class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500" />
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1">Net Salary (RM)</label>
+                                <input type="number" id="payslipAmount" step="0.01" placeholder="e.g. 3500.00" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1">Payslip Document (PDF) *</label>
+                                <input type="file" id="payslipFile" accept="application/pdf,image/*" required class="w-full bg-slate-950 border border-slate-800 text-slate-400 text-xs rounded-xl px-3 py-1.5 focus:outline-none file:mr-3 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-indigo-600/20 file:text-indigo-400 hover:file:bg-indigo-600/30" />
+                            </div>
+                        </div>
+
+                        <button type="submit" id="payslipSubmitBtn" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-paper-plane"></i> Submit Payslip
+                        </button>
+                    </form>
+                </div>
+            </section>
+
         </main>
     </div>
 
@@ -1991,6 +2032,112 @@
         // Call inside your DOMContentLoaded event
         document.addEventListener('DOMContentLoaded', () => {
             renderStaffOverviewList();
+        });
+
+        // Populate the Payslip Staff Dropdown dynamically
+        function initPayslipStaffDropdown() {
+            const select = document.getElementById('payslipStaffSelect');
+            if (!select) return;
+        
+            db.ref('presence').on('value', (snapshot) => {
+                const val = snapshot.val();
+                select.innerHTML = '<option value="">Select Staff Member</option>';
+        
+                if (!val) return;
+        
+                Object.keys(val).forEach(uid => {
+                    const staff = val[uid];
+                    const email = staff.email || '';
+        
+                    if (email) {
+                        const emailPrefix = email.split('@')[0];
+                        const formattedName = staff.name || staff.empName || emailPrefix.replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        
+                        const option = document.createElement('option');
+                        option.value = JSON.stringify({ name: formattedName, email: email });
+                        option.textContent = `${formattedName} (${email})`;
+                        select.appendChild(option);
+                    }
+                });
+            });
+        }
+        
+        // Form Submission Handler for Payslip Upload
+        async function handlePayslipSubmit(e) {
+            e.preventDefault();
+        
+            const submitBtn = document.getElementById('payslipSubmitBtn');
+            const staffSelectValue = document.getElementById('payslipStaffSelect').value;
+            const period = document.getElementById('payslipPeriod').value;
+            const amount = document.getElementById('payslipAmount').value || '0.00';
+            const remarks = document.getElementById('payslipRemarks').value.trim();
+            const fileInput = document.getElementById('payslipFile');
+            const file = fileInput ? fileInput.files[0] : null;
+        
+            if (!staffSelectValue) {
+                if (typeof showToast === 'function') showToast("Please select a staff member.", "error");
+                return;
+            }
+        
+            if (!file) {
+                if (typeof showToast === 'function') showToast("Please select a payslip file.", "error");
+                return;
+            }
+        
+            // Disable button & show loading indicator
+            const originalBtnHTML = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.classList.add('opacity-75', 'cursor-not-allowed');
+            submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> Uploading Payslip...`;
+        
+            try {
+                const selectedStaff = JSON.parse(staffSelectValue);
+        
+                // Convert uploaded file to Base64
+                const fileBase64 = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (event) => resolve(event.target.result);
+                    reader.onerror = (error) => reject(error);
+                    reader.readAsDataURL(file);
+                });
+        
+                const payslipRecord = {
+                    empName: selectedStaff.name,
+                    userEmail: selectedStaff.email,
+                    payPeriod: period, // Format: YYYY-MM
+                    amount: parseFloat(amount).toFixed(2),
+                    remarks: remarks || '--',
+                    fileName: file.name,
+                    fileBase64: fileBase64,
+                    uploadedAt: Date.now()
+                };
+        
+                // Push record to Firebase 'payslips' node
+                await db.ref('payslips').push(payslipRecord);
+        
+                if (typeof showToast === 'function') {
+                    showToast("Payslip uploaded successfully!", "success");
+                }
+        
+                // Reset form
+                document.getElementById('payslipUploadForm').reset();
+        
+            } catch (error) {
+                console.error("Payslip Upload Error:", error);
+                if (typeof showToast === 'function') {
+                    showToast("Failed to upload payslip. Please try again.", "error");
+                }
+            } finally {
+                // Re-enable button
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+                submitBtn.innerHTML = originalBtnHTML;
+            }
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            initPayslipStaffDropdown();
         });
     </script>
 </body>
