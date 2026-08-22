@@ -284,8 +284,8 @@
                                 <input type="file" id="manualAttachment" accept="image/*,.pdf" class="w-full text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-slate-800 file:text-indigo-400 hover:file:bg-slate-700 cursor-pointer" />
                             </div>
 
-                            <button type="submit" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition shadow-lg shadow-indigo-600/20 mt-2">
-                                <i class="fa-solid fa-floppy-disk mr-1"></i> Save Entry
+                            <button type="submit" id="manualSubmitBtn" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-paper-plane"></i> Submit Entry
                             </button>
                         </form>
                     </div>
@@ -1142,6 +1142,30 @@
             });
         }
 
+        // Push to Firebase Realtime Database
+        function saveAttendanceRecord(payload, submitBtn, originalBtnHTML) {
+            return db.ref('attendance_logs').push(payload)
+                .then(() => {
+                    if (typeof showToast === 'function') {
+                        showToast("Emergency leave/attendance entry saved.", "success");
+                    }
+                    resetManualAttendanceForm();
+                })
+                .catch(err => {
+                    if (typeof showToast === 'function') {
+                        showToast(err.message, 'error');
+                    }
+                })
+                .finally(() => {
+                    // Re-enable and restore button state when finished
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+                        submitBtn.innerHTML = originalBtnHTML;
+                    }
+                });
+        }
+
         // Form Handler for Manual / Emergency Entry
         function handleManualAttendanceSubmit(e) {
             e.preventDefault();
@@ -1150,6 +1174,18 @@
             if (!staffSelectValue) {
                 if (typeof showToast === 'function') showToast("Please select a staff member.", "error");
                 return;
+            }
+
+            // Get the submit button inside the form
+            const submitBtn = e.target.querySelector('button[type="submit"]') || document.getElementById('manualSubmitBtn');
+            let originalBtnHTML = '';
+
+            // Disable button and show spinner to prevent duplicate clicks
+            if (submitBtn) {
+                originalBtnHTML = submitBtn.innerHTML;
+                submitBtn.disabled = true;
+                submitBtn.classList.add('opacity-75', 'cursor-not-allowed');
+                submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> Saving...`;
             }
 
             // Extract selected staff details
@@ -1184,23 +1220,21 @@
                     recordData.hasAttachment = true;
                     recordData.attachmentBase64 = event.target.result;
                     recordData.attachmentFileName = file.name;
-                    saveAttendanceRecord(recordData);
+                    saveAttendanceRecord(recordData, submitBtn, originalBtnHTML);
+                };
+                reader.onerror = function () {
+                    if (typeof showToast === 'function') showToast("Failed to read attachment file.", "error");
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+                        submitBtn.innerHTML = originalBtnHTML;
+                    }
                 };
                 reader.readAsDataURL(file);
             } else {
                 recordData.hasAttachment = false;
-                saveAttendanceRecord(recordData);
+                saveAttendanceRecord(recordData, submitBtn, originalBtnHTML);
             }
-        }
-
-        // Push to Firebase Realtime Database
-        function saveAttendanceRecord(payload) {
-            db.ref('attendance_logs').push(payload)
-                .then(() => {
-                    showToast("Emergency leave/attendance entry saved.");
-                    resetManualAttendanceForm();
-                })
-                .catch(err => showToast(err.message, 'error'));
         }
 
         // Render Attendance Table with Support for Emergency Badges & Attachments
