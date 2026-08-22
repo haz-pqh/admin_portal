@@ -879,6 +879,11 @@
             const activeBtn = document.getElementById(`nav-${tabName}`);
             activeBtn.classList.remove('text-slate-400');
             activeBtn.classList.add('text-indigo-400', 'bg-indigo-600/10', 'border', 'border-indigo-500/30');
+
+            // Refresh staff options when opening Payslips tab
+            if (tabName === 'payslips') {
+                initPayslipStaffDropdown();
+            }
         }
 
         auth.onAuthStateChanged((user) => {
@@ -2037,6 +2042,57 @@
         document.addEventListener('DOMContentLoaded', () => {
             renderStaffOverviewList();
         });
+
+        function initPayslipStaffDropdown() {
+            const payslipSelect = document.getElementById('payslipStaffSelect');
+            if (!payslipSelect) return;
+        
+            // Method 1: Sync directly from existing manualStaffSelect if it already has data
+            const manualSelect = document.getElementById('manualStaffSelect');
+            if (manualSelect && manualSelect.options.length > 1) {
+                payslipSelect.innerHTML = manualSelect.innerHTML;
+                return;
+            }
+        
+            // Method 2: Fetch staff dynamically from Firebase (Presence & Attendance Logs)
+            const staffMap = new Map();
+        
+            // Helper to add staff options into dropdown
+            const updateSelectUI = () => {
+                payslipSelect.innerHTML = '<option value="" class="bg-slate-900 text-slate-300">Select Staff Member</option>';
+                staffMap.forEach((staff) => {
+                    const opt = document.createElement('option');
+                    opt.className = "bg-slate-900 text-slate-200"; // Dark mode options styling fix
+                    opt.value = JSON.stringify({ name: staff.name, email: staff.email });
+                    opt.textContent = `${staff.name} (${staff.email})`;
+                    payslipSelect.appendChild(opt);
+                });
+            };
+        
+            // Load from presence node
+            db.ref('presence').on('value', (snap) => {
+                const val = snap.val();
+                if (val) {
+                    Object.values(val).forEach(s => {
+                        if (s.email) {
+                            const name = s.name || s.empName || s.email.split('@')[0];
+                            staffMap.set(s.email.toLowerCase(), { name, email: s.email });
+                        }
+                    });
+                    updateSelectUI();
+                }
+            });
+        
+            // Fallback: Also scan existing attendance logs to ensure no staff member is missed
+            if (typeof attendanceLogs !== 'undefined' && attendanceLogs.length > 0) {
+                attendanceLogs.forEach(log => {
+                    if (log.userEmail && log.empName) {
+                        staffMap.set(log.userEmail.toLowerCase(), { name: log.empName, email: log.userEmail });
+                    }
+                });
+                updateSelectUI();
+            }
+        }
     </script>
 </body>
 </html>
