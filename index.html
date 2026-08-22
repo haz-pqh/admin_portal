@@ -158,34 +158,18 @@
                     </div>
                 </div>
 
-                <!-- Staff Leave & Off Day Overview -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    <!-- Off Day Card -->
-                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold">
-                                <i class="fa-solid fa-calendar-check"></i>
-                            </div>
-                            <div>
-                                <p class="text-xs text-slate-400 font-medium">Total Off Days Carried</p>
-                                <h4 id="overviewTotalOffDays" class="text-xl font-bold text-white mt-0.5">0 Days</h4>
-                            </div>
-                        </div>
-                        <span class="text-[10px] text-slate-500 bg-slate-800/60 px-2 py-1 rounded-lg">Carried forward</span>
+                <!-- Staff Overview Section -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 mb-6">
+                    <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-users text-indigo-400"></i> Staff Leave & Off Day Overview
+                        </h3>
+                        <span class="text-[11px] text-slate-400 bg-slate-800 px-2.5 py-1 rounded-lg">Real-time Summary</span>
                     </div>
 
-                    <!-- Medical Leave Card -->
-                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center font-bold">
-                                <i class="fa-solid fa-notes-medical"></i>
-                            </div>
-                            <div>
-                                <p class="text-xs text-slate-400 font-medium">Medical Leave (This Month)</p>
-                                <h4 id="overviewMedicalLeave" class="text-xl font-bold text-white mt-0.5">1 / 1 Day</h4>
-                            </div>
-                        </div>
-                        <span class="text-[10px] text-slate-500 bg-slate-800/60 px-2 py-1 rounded-lg">Resets monthly</span>
+                    <!-- Staff List Container -->
+                    <div id="staffOverviewList" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <p class="text-xs text-slate-500 col-span-full text-center py-4">Loading staff overview...</p>
                     </div>
                 </div>
             </section>
@@ -1878,77 +1862,6 @@
             });
         }
 
-        // Calculate Staff Off Days & Medical Leave
-        function calculateStaffLeaveBalances(targetEmail) {
-            if (!targetEmail || !attendanceLogs || attendanceLogs.length === 0) {
-                return { totalOffDays: 0, currentMonthMCBalance: 1 };
-            }
-
-            const staffLogs = attendanceLogs
-                .filter(log => log.userEmail && log.userEmail.toLowerCase() === targetEmail.toLowerCase())
-                .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-            const now = new Date();
-            const currentYear = now.getFullYear();
-            const currentMonth = now.getMonth();
-
-            let totalOffDaysCarried = 0;
-            let monthlyMCUsed = 0;
-
-            // Track weekly weekday clock-ins to grant earned carryover off days
-            const weeklyClockIns = {};
-
-            staffLogs.forEach(log => {
-                const logDate = new Date(log.date);
-                const logYear = logDate.getFullYear();
-                const logMonth = logDate.getMonth();
-                const dayOfWeek = logDate.getDay(); // 0 = Sun, 6 = Sat
-                const status = (log.punctualityStatus || '').toUpperCase();
-
-                // Check if log is in the current month to calculate active MC entitlement
-                const isCurrentMonth = (logYear === currentYear && logMonth === currentMonth);
-
-                // 1. Calculate Weekday Clock-Ins for Carried Off Days (Mon-Fri = 1 to 5)
-                if (dayOfWeek >= 1 && dayOfWeek <= 5 && log.clockIn && log.clockIn !== '--') {
-                    const weekKey = `${logYear}-W${getWeekNumber(logDate)}`;
-                    weeklyClockIns[weekKey] = (weeklyClockIns[weekKey] || 0) + 1;
-
-                    // If staff worked all 5 weekdays in a week, add +1 carried off day
-                    if (weeklyClockIns[weekKey] === 5) {
-                        totalOffDaysCarried += 1;
-                    }
-                }
-
-                // 2. Process Medical Leave (MC) Deductions
-                if (status === 'MEDICAL LEAVE' || status === 'MC') {
-                    if (isCurrentMonth) {
-                        monthlyMCUsed += 1;
-                    } else {
-                        // Past months MC logic: 1 day covered by monthly entitlement, excess deducts from off days
-                        totalOffDaysCarried -= 0; // First 1 day covered by that month's allowance
-                    }
-                }
-
-                // 3. Process Leave Deductions (Annual / Emergency / Off Day Leave)
-                if (['ANNUAL LEAVE', 'EMERGENCY LEAVE', 'OFF DAY LEAVE', 'LEAVE'].includes(status)) {
-                    totalOffDaysCarried = Math.max(0, totalOffDaysCarried - 1);
-                }
-            });
-
-            // Process current month MC excess deduction
-            if (monthlyMCUsed > 1) {
-                const excessMC = monthlyMCUsed - 1;
-                totalOffDaysCarried = Math.max(0, totalOffDaysCarried - excessMC);
-            }
-
-            const currentMonthMCBalance = Math.max(0, 1 - monthlyMCUsed);
-
-            return {
-                totalOffDays: totalOffDaysCarried,
-                currentMonthMCBalance: currentMonthMCBalance
-            };
-        }
-
         // ISO Week Number Helper
         function getWeekNumber(d) {
             const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -1958,28 +1871,126 @@
             return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
         }
 
-        // Update Overview UI when staff is selected from dropdown
-        function updateOverviewForSelectedStaff() {
-            const select = document.getElementById('manualStaffSelect');
-            if (!select || !select.value) {
-                document.getElementById('overviewTotalOffDays').textContent = '0 Days';
-                document.getElementById('overviewMedicalLeave').textContent = '1 / 1 Day';
-                return;
+        // Calculate individual staff leave and off-day metrics
+        function calculateStaffMetrics(userEmail) {
+            if (!userEmail || !attendanceLogs || attendanceLogs.length === 0) {
+                return { totalOffDays: 0, mcBalance: 1 };
             }
 
-            const selectedStaff = JSON.parse(select.value);
-            const balances = calculateStaffLeaveBalances(selectedStaff.email);
+            const staffLogs = attendanceLogs
+                .filter(log => log.userEmail && log.userEmail.toLowerCase() === userEmail.toLowerCase())
+                .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-            document.getElementById('overviewTotalOffDays').textContent = `${balances.totalOffDays} ${balances.totalOffDays === 1 ? 'Day' : 'Days'}`;
-            document.getElementById('overviewMedicalLeave').textContent = `${balances.currentMonthMCBalance} / 1 Day`;
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const currentMonth = now.getMonth();
+
+            let totalOffDaysCarried = 0;
+            let currentMonthMCUsed = 0;
+            const weeklyClockIns = {};
+
+            staffLogs.forEach(log => {
+                const logDate = new Date(log.date);
+                const logYear = logDate.getFullYear();
+                const logMonth = logDate.getMonth();
+                const dayOfWeek = logDate.getDay(); // 1 = Mon ... 5 = Fri
+                const status = (log.punctualityStatus || '').toUpperCase();
+
+                const isCurrentMonth = (logYear === currentYear && logMonth === currentMonth);
+
+                // 1. Weekday Clock-in Rule: Mon-Fri full week clock-in earns +1 carried off day
+                if (dayOfWeek >= 1 && dayOfWeek <= 5 && log.clockIn && log.clockIn !== '--') {
+                    const weekKey = `${logYear}-W${getWeekNumber(logDate)}`;
+                    weeklyClockIns[weekKey] = (weeklyClockIns[weekKey] || 0) + 1;
+
+                    if (weeklyClockIns[weekKey] === 5) {
+                        totalOffDaysCarried += 1;
+                    }
+                }
+
+                // 2. Track Current Month MCs used
+                if ((status === 'MEDICAL LEAVE' || status === 'MC') && isCurrentMonth) {
+                    currentMonthMCUsed += 1;
+                }
+
+                // 3. Leave Deductions (Annual, Emergency, or Off-Day Leave)
+                if (['ANNUAL LEAVE', 'EMERGENCY LEAVE', 'OFF DAY LEAVE', 'LEAVE'].includes(status)) {
+                    totalOffDaysCarried = Math.max(0, totalOffDaysCarried - 1);
+                }
+            });
+
+            // 4. MC Excess Deduction Rule:
+            // 1 MC allowance per month. Excess MCs deduct directly from Off Days Carried.
+            if (currentMonthMCUsed > 1) {
+                const excessMC = currentMonthMCUsed - 1;
+                totalOffDaysCarried = Math.max(0, totalOffDaysCarried - excessMC);
+            }
+
+            const mcBalance = Math.max(0, 1 - currentMonthMCUsed);
+
+            return {
+                totalOffDays: totalOffDaysCarried,
+                mcBalance: mcBalance
+            };
         }
 
-        // Bind event listener to dropdown change
+        // Render Staff-by-Staff Overview List
+        function renderStaffOverviewList() {
+            const listContainer = document.getElementById('staffOverviewList');
+            if (!listContainer) return;
+
+            db.ref('presence').on('value', (snapshot) => {
+                const val = snapshot.val();
+                listContainer.innerHTML = '';
+
+                if (!val) {
+                    listContainer.innerHTML = `<p class="text-xs text-slate-500 col-span-full text-center py-4">No staff members found.</p>`;
+                    return;
+                }
+
+                Object.keys(val).forEach(uid => {
+                    const staff = val[uid];
+                    const email = staff.email || '';
+                    if (!email) return;
+
+                    const emailPrefix = email.split('@')[0];
+                    const name = staff.name || staff.empName || emailPrefix.replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+                    // Calculate balances for this specific staff member
+                    const metrics = calculateStaffMetrics(email);
+
+                    const card = document.createElement('div');
+                    card.className = "bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 flex items-center justify-between";
+                    card.innerHTML = `
+                        <div class="flex items-center gap-3">
+                            <div class="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-indigo-400 border border-slate-700">
+                                ${name.charAt(0)}
+                            </div>
+                            <div>
+                                <h4 class="text-xs font-bold text-slate-200">${name}</h4>
+                                <p class="text-[10px] text-slate-500">${email}</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-4 text-right">
+                            <div>
+                                <p class="text-[10px] text-slate-400 font-medium">Off Days</p>
+                                <span class="text-xs font-bold text-indigo-400">${metrics.totalOffDays} Days</span>
+                            </div>
+                            <div class="border-l border-slate-800 pl-4">
+                                <p class="text-[10px] text-slate-400 font-medium">MC Balance</p>
+                                <span class="text-xs font-bold ${metrics.mcBalance === 0 ? 'text-rose-400' : 'text-emerald-400'}">${metrics.mcBalance} / 1 Day</span>
+                            </div>
+                        </div>
+                    `;
+                    listContainer.appendChild(card);
+                });
+            });
+        }
+
+        // Call inside your DOMContentLoaded event
         document.addEventListener('DOMContentLoaded', () => {
-            const select = document.getElementById('manualStaffSelect');
-            if (select) {
-                select.addEventListener('change', updateOverviewForSelectedStaff);
-            }
+            renderStaffOverviewList();
         });
     </script>
 </body>
