@@ -353,6 +353,8 @@
                 <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl">
                     <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-4">Leave Application Management</h3>
                     <div class="overflow-x-auto">
+                        <!-- FILTER BANNER -->
+                        <div id="leaveTableFilterBanner" class="hidden"></div>
                         <table class="w-full text-left text-xs text-slate-300">
                             <thead class="bg-slate-950 text-slate-400 uppercase text-[10px] border-b border-slate-800">
                                 <tr>
@@ -1479,8 +1481,8 @@
         }
 
         let calCurrentDate = new Date();
+        let selectedCalendarDate = null; // Tracks clicked calendar date
 
-        // Render Calendar Grid
         function renderLeaveCalendar() {
             const grid = document.getElementById('leaveCalendarGrid');
             const monthYearText = document.getElementById('calendarMonthYear');
@@ -1491,16 +1493,14 @@
             const year = calCurrentDate.getFullYear();
             const month = calCurrentDate.getMonth();
 
-            // Display Month & Year Header
             const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
             monthYearText.textContent = `${monthNames[month]} ${year}`;
 
             const firstDayIndex = new Date(year, month, 1).getDay();
             const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
-
             const todayStr = new Date().toISOString().split('T')[0];
 
-            // Blank cells for previous month padding
+            // Blank cells for padding
             for (let i = 0; i < firstDayIndex; i++) {
                 const emptyCell = document.createElement('div');
                 emptyCell.className = 'min-h-[70px] sm:min-h-[85px] bg-slate-950/40 rounded-xl border border-slate-800/40 opacity-30';
@@ -1514,6 +1514,7 @@
                 const dateStr = `${year}-${monthFormatted}-${dayFormatted}`;
 
                 const isToday = dateStr === todayStr;
+                const isSelected = selectedCalendarDate === dateStr;
 
                 // Find active leaves overlapping this date
                 const activeLeaves = (typeof leaveRequests !== 'undefined' ? leaveRequests : []).filter(req => {
@@ -1522,15 +1523,20 @@
                 });
 
                 const dayCell = document.createElement('div');
-                dayCell.className = `min-h-[70px] sm:min-h-[85px] p-1.5 rounded-xl border text-left flex flex-col justify-between transition ${
-                    isToday 
-                        ? 'bg-indigo-950/30 border-indigo-500/50 shadow-md shadow-indigo-500/10' 
-                        : 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
+                dayCell.setAttribute('onclick', `filterLeaveTableByDate('${dateStr}')`);
+                
+                // Add cursor pointer and highlighted ring if selected
+                dayCell.className = `min-h-[70px] sm:min-h-[85px] p-1.5 rounded-xl border text-left flex flex-col justify-between transition cursor-pointer ${
+                    isSelected
+                        ? 'bg-indigo-600/30 border-indigo-400 ring-2 ring-indigo-500'
+                        : isToday 
+                            ? 'bg-indigo-950/30 border-indigo-500/50 shadow-md shadow-indigo-500/10 hover:border-indigo-400' 
+                            : 'bg-slate-950/80 border-slate-800 hover:border-slate-600'
                 }`;
 
                 let dayHeaderHTML = `
                     <div class="flex items-center justify-between">
-                        <span class="text-[11px] font-bold ${isToday ? 'text-indigo-400 bg-indigo-500/20 px-1.5 py-0.5 rounded-md' : 'text-slate-400'}">${day}</span>
+                        <span class="text-[11px] font-bold ${isSelected ? 'text-indigo-300 font-extrabold' : isToday ? 'text-indigo-400 bg-indigo-500/20 px-1.5 py-0.5 rounded-md' : 'text-slate-400'}">${day}</span>
                         ${activeLeaves.length > 0 ? `<span class="text-[9px] font-extrabold text-amber-400 bg-amber-500/10 px-1 rounded">${activeLeaves.length} On Leave</span>` : ''}
                     </div>
                 `;
@@ -1777,30 +1783,84 @@
             return name;
         }
 
+        // Toggle date filter on click
+        function filterLeaveTableByDate(dateStr) {
+            if (selectedCalendarDate === dateStr) {
+                selectedCalendarDate = null; // Toggle off if clicked again
+            } else {
+                selectedCalendarDate = dateStr;
+            }
+            
+            renderLeaveCalendar();
+            renderLeavesUI();
+        }
+
+        // Clear date filter handler
+        function clearLeaveDateFilter() {
+            selectedCalendarDate = null;
+            renderLeaveCalendar();
+            renderLeavesUI();
+        }
+
         function renderLeavesUI() {
             const tbody = document.getElementById('leaveRequestsTableBody');
             const pendingBadge = document.getElementById('pendingLeaveBadge');
+            if (!tbody) return;
+
             tbody.innerHTML = '';
             let pendingCount = 0;
 
-            if (leaveRequests.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="8" class="p-4 text-center text-slate-500 text-xs">No leave requests submitted yet.</td></tr>`;
+            // Filter by selected calendar date if active
+            let displayRequests = leaveRequests;
+            if (selectedCalendarDate) {
+                displayRequests = leaveRequests.filter(req => {
+                    if (!req.startDate || !req.endDate) return false;
+                    return selectedCalendarDate >= req.startDate && selectedCalendarDate <= req.endDate;
+                });
+            }
+
+            // Add Filter Status Banner in Table area if filtered
+            const filterBanner = document.getElementById('leaveTableFilterBanner');
+            if (filterBanner) {
+                if (selectedCalendarDate) {
+                    filterBanner.classList.remove('hidden');
+                    filterBanner.innerHTML = `
+                        <div class="flex items-center justify-between bg-indigo-600/20 border border-indigo-500/30 px-3 py-2 rounded-xl mb-3 text-xs text-indigo-300">
+                            <span class="flex items-center gap-2">
+                                <i class="fa-solid fa-filter"></i> Showing leaves active on <strong>${selectedCalendarDate}</strong> (${displayRequests.length} record/s)
+                            </span>
+                            <button onclick="clearLeaveDateFilter()" class="text-[11px] font-bold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded-lg transition">
+                                Show All
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    filterBanner.classList.add('hidden');
+                }
+            }
+
+            if (displayRequests.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="p-6 text-center text-slate-500 text-xs">
+                            ${selectedCalendarDate ? `No staff leave applications on <strong>${selectedCalendarDate}</strong>.` : 'No leave requests submitted yet.'}
+                        </td>
+                    </tr>`;
             } else {
-                leaveRequests.forEach(req => {
+                displayRequests.forEach(req => {
                     if (req.status === 'PENDING') pendingCount++;
 
                     let statusBadge = 'bg-amber-500/20 text-amber-400 border-amber-500/40';
                     if (req.status === 'APPROVED') statusBadge = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
                     if (req.status === 'REJECTED') statusBadge = 'bg-rose-500/20 text-rose-400 border-rose-500/40';
 
-                    const staffDisplayName = getFormattedStaffName(req);
+                    const staffDisplayName = typeof getFormattedStaffName === 'function' ? getFormattedStaffName(req) : (req.empName || 'Staff');
 
                     const row = document.createElement('tr');
                     row.className = 'hover:bg-slate-900/50 transition';
                     row.innerHTML = `
                         <td class="p-3 text-slate-400 text-[11px]">${req.appliedAt ? new Date(req.appliedAt).toLocaleDateString() : '--'}</td>
                         <td class="p-3">
-                            <!-- CLEANED STAFF NAME DISPLAY -->
                             <span class="font-semibold text-slate-200 block capitalize">${staffDisplayName}</span>
                             <span class="text-[10px] text-slate-500">${req.userEmail || ''}</span>
                         </td>
@@ -1833,18 +1893,15 @@
                 });
             }
 
-            document.getElementById('metricPendingLeaves').textContent = pendingCount;
-            if (pendingCount > 0) {
-                pendingBadge.textContent = pendingCount;
-                pendingBadge.classList.remove('hidden');
-            } else {
-                pendingBadge.classList.add('hidden');
+            if (pendingBadge) {
+                document.getElementById('metricPendingLeaves').textContent = pendingCount;
+                if (pendingCount > 0) {
+                    pendingBadge.textContent = pendingCount;
+                    pendingBadge.classList.remove('hidden');
+                } else {
+                    pendingBadge.classList.add('hidden');
+                }
             }
-            
-            if (typeof renderLeaveCalendar === 'function') {
-                renderLeaveCalendar();
-            }
-
         }
 
         function updateLeaveStatus(key, status) {
