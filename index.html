@@ -999,6 +999,11 @@
             if (tabName === 'payslips') {
                 initPayslipStaffDropdown();
             }
+
+            if (tabName === 'leaves') {
+                renderLeavesUI();
+                renderLeaveCalendar(); // Forces calendar to draw when tab opens
+            }
         }
 
         auth.onAuthStateChanged((user) => {
