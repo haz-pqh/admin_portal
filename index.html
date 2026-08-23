@@ -1600,10 +1600,15 @@
                 if (val) {
                     Object.values(val).forEach(s => {
                         if (s.email && s.email.toLowerCase() !== (req.userEmail || '').toLowerCase()) {
-                            const name = s.name || s.empName || s.email.split('@')[0];
+                            // Clean up name before populating option
+                            let cleanName = s.name || s.empName;
+                            if (!cleanName || cleanName === s.email.split('@')[0]) {
+                                cleanName = s.email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                            }
+
                             const opt = document.createElement('option');
-                            opt.value = JSON.stringify({ name, email: s.email });
-                            opt.textContent = `${name} (${s.email})`;
+                            opt.value = JSON.stringify({ name: cleanName, email: s.email });
+                            opt.textContent = `${cleanName} (${s.email})`;
                             staffSelect.appendChild(opt);
                         }
                     });
@@ -1754,6 +1759,24 @@
             modal.classList.remove('hidden');
         }
 
+        // Helper to format staff display names cleanly
+        function getFormattedStaffName(req) {
+            // 1. If explicit display name exists and isn't just an email username, use it
+            let name = req.empName || req.staffName || req.name;
+            
+            // 2. If name is missing or looks like a raw email prefix, clean it up from email
+            if (!name || name === req.userEmail || (req.userEmail && name === req.userEmail.split('@')[0])) {
+                if (req.userEmail) {
+                    const handle = req.userEmail.split('@')[0];
+                    // Convert "hassanhazril" -> "Hassanhazril" or "haz.piqah" -> "Haz Piqah"
+                    name = handle.replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                } else {
+                    name = 'Staff Member';
+                }
+            }
+            return name;
+        }
+
         function renderLeavesUI() {
             const tbody = document.getElementById('leaveRequestsTableBody');
             const pendingBadge = document.getElementById('pendingLeaveBadge');
@@ -1770,12 +1793,15 @@
                     if (req.status === 'APPROVED') statusBadge = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
                     if (req.status === 'REJECTED') statusBadge = 'bg-rose-500/20 text-rose-400 border-rose-500/40';
 
+                    const staffDisplayName = getFormattedStaffName(req);
+
                     const row = document.createElement('tr');
                     row.className = 'hover:bg-slate-900/50 transition';
                     row.innerHTML = `
                         <td class="p-3 text-slate-400 text-[11px]">${req.appliedAt ? new Date(req.appliedAt).toLocaleDateString() : '--'}</td>
                         <td class="p-3">
-                            <span class="font-semibold text-slate-200 block">${req.empName || 'Staff'}</span>
+                            <!-- CLEANED STAFF NAME DISPLAY -->
+                            <span class="font-semibold text-slate-200 block capitalize">${staffDisplayName}</span>
                             <span class="text-[10px] text-slate-500">${req.userEmail || ''}</span>
                         </td>
                         <td class="p-3 text-indigo-400 font-semibold uppercase text-[10px]">${req.leaveType || 'Leave'}</td>
