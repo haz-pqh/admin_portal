@@ -1067,14 +1067,20 @@
                 renderAttendanceTable();
             });
 
-            db.ref('leave_requests').on('value', (snap) => {
-                const val = snap.val();
+            db.ref('leave_requests').on('value', (snapshot) => {
                 leaveRequests = [];
-                if (val) {
-                    Object.keys(val).forEach(key => leaveRequests.push({ key, ...val[key] }));
-                    leaveRequests.reverse();
-                }
+                snapshot.forEach((childSnapshot) => {
+                    leaveRequests.push({
+                        key: childSnapshot.key,
+                        ...childSnapshot.val()
+                    });
+                });
+
+                // 1. Render the table
                 renderLeavesUI();
+                
+                // 2. ADD THIS LINE to always draw the calendar
+                renderLeaveCalendar(); 
             });
 
             db.ref('sales_updates').on('value', (snap) => {
