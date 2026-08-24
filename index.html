@@ -1042,6 +1042,7 @@
             db.ref('presence').on('value', (snap) => {
                 presenceData = snap.val() || {};
                 renderPresenceUI();
+                runAutoAbsentCheck();
             });
 
             db.ref('active_session').on('value', (snap) => {
@@ -1070,6 +1071,7 @@
                     attendanceLogs.reverse(); // Display newest entries first
                 }
                 renderAttendanceTable();
+                runAutoAbsentCheck();
             });
 
             db.ref('leave_requests').on('value', (snapshot) => {
@@ -1086,7 +1088,14 @@
                 
                 // 2. ADD THIS LINE to always draw the calendar
                 renderLeaveCalendar(); 
+
+                runAutoAbsentCheck();
             });
+
+            // Kick off the periodic Auto-Absent enforcement (checks immediately,
+            // then re-checks every 5 minutes in case the 11:00 AM cutoff is
+            // crossed while the dashboard stays open).
+            scheduleAutoAbsentCheck();
 
             db.ref('sales_updates').on('value', (snap) => {
                 const val = snap.val();
@@ -1331,6 +1340,122 @@
                     }
                 });
             });
+        }
+
+        // ==================== AUTO-ABSENT RULE ====================
+        // Business rule: if a staff member has not clocked in between
+        // 8:00 AM and 11:00 AM on a given day, the system automatically
+        // logs them as ABSENT for that day once the 11:00 AM cutoff passes.
+        //
+        // NOTE: This runs client-side, inside the admin dashboard. It fires
+        // as soon as the dashboard loads (if already past 11:00 AM) and then
+        // every 5 minutes for as long as an admin has this page open. For
+        // guaranteed enforcement even when no admin has the dashboard open,
+        // this same logic should also be deployed as a scheduled Firebase
+        // Cloud Function (e.g. via Cloud Scheduler / pub-sub trigger at
+        // 11:00 AM daily) — ask if you'd like that written as well.
+        const AUTO_ABSENT_WINDOW_START_HOUR = 8;  // 8:00 AM - start of clock-in window
+        const AUTO_ABSENT_CUTOFF_HOUR = 11;       // 11:00 AM - after this, no clock-in = ABSENT
+
+        let autoAbsentCheckRunning = false;
+
+        // Local YYYY-MM-DD date string (matches the format used elsewhere, e.g. manualAttendanceDate)
+        function getLocalDateStr(d = new Date()) {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        async function runAutoAbsentCheck() {
+            // Only enforce once the 11:00 AM cutoff has passed for today
+            const now = new Date();
+            if (now.getHours() < AUTO_ABSENT_CUTOFF_HOUR) return;
+
+            // Need the staff roster to know who to check
+            if (!presenceData || Object.keys(presenceData).length === 0) return;
+
+            // Avoid overlapping runs (e.g. presence + attendance_logs updates firing back to back)
+            if (autoAbsentCheckRunning) return;
+            autoAbsentCheckRunning = true;
+
+            try {
+                const todayStr = getLocalDateStr(now);
+
+                // Staff who already have ANY attendance_logs entry for today
+                // (clocked in, manually marked, on leave, etc.) — skip these.
+                const alreadyLogged = new Set(
+                    (attendanceLogs || [])
+                        .filter(log => log.date === todayStr && log.userEmail)
+                        .map(log => log.userEmail.toLowerCase())
+                );
+
+                // Staff on an APPROVED leave that covers today — skip these too,
+                // since an absence from an approved leave day is not an "absent".
+                const onApprovedLeaveToday = new Set(
+                    (leaveRequests || [])
+                        .filter(req => req.status === 'APPROVED' && req.userEmail && req.startDate && req.endDate &&
+                            todayStr >= req.startDate && todayStr <= req.endDate)
+                        .map(req => req.userEmail.toLowerCase())
+                );
+
+                const staffEntries = Object.values(presenceData || {});
+                const pushOps = [];
+
+                staffEntries.forEach(staff => {
+                    const rawEmail = staff.email || '';
+                    const email = rawEmail.toLowerCase();
+                    if (!email) return;
+                    if (alreadyLogged.has(email)) return;
+                    if (onApprovedLeaveToday.has(email)) return;
+
+                    const emailPrefix = email.split('@')[0];
+                    const empName = staff.name || staff.empName || emailPrefix.replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+                    const absentRecord = {
+                        empName,
+                        userEmail: rawEmail,
+                        date: todayStr,
+                        punctualityStatus: 'ABSENT',
+                        clockIn: '--',
+                        clockOut: '--',
+                        durationText: 'No Clock-In',
+                        remarks: `Auto-marked absent: no clock-in between ${AUTO_ABSENT_WINDOW_START_HOUR}:00 AM and ${AUTO_ABSENT_CUTOFF_HOUR}:00 AM.`,
+                        statusColor: 'red',
+                        autoGenerated: true,
+                        hasAttachment: false,
+                        createdByAdmin: false,
+                        timestamp: Date.now()
+                    };
+
+                    // Mark as logged locally right away so a second staff record
+                    // sharing the same email (shouldn't happen, but just in case)
+                    // and any near-simultaneous re-run don't double-push.
+                    alreadyLogged.add(email);
+
+                    pushOps.push(
+                        db.ref('attendance_logs').push(absentRecord).catch(err => {
+                            console.error('Auto-absent push failed for', rawEmail, err);
+                        })
+                    );
+                });
+
+                if (pushOps.length > 0) {
+                    await Promise.all(pushOps);
+                    if (typeof showToast === 'function') {
+                        showToast(`${pushOps.length} staff auto-marked ABSENT (no clock-in by ${AUTO_ABSENT_CUTOFF_HOUR}:00 AM).`, 'error');
+                    }
+                }
+            } finally {
+                autoAbsentCheckRunning = false;
+            }
+        }
+
+        // Runs the check immediately, then re-checks every 5 minutes so staff
+        // get marked ABSENT soon after 11:00 AM even without a manual refresh.
+        function scheduleAutoAbsentCheck() {
+            runAutoAbsentCheck();
+            setInterval(runAutoAbsentCheck, 5 * 60 * 1000);
         }
 
         // Push to Firebase Realtime Database
