@@ -2182,12 +2182,10 @@
             const currentSelection = select.value;
             const branches = new Set();
         
-            // 1. Only add active branches from the master list
+            // Only collect branches that are not marked as INACTIVE
             branchesList.forEach(b => {
-                // Adjust 'b.status' or 'b.isActive' based on your exact database field name
-                const isActive = b.status.toLowerCase() === 'active';
-                
-                if (b.name && isActive) {
+                const isInactive = b.status && b.status.toUpperCase() === 'INACTIVE';
+                if (b.name && !isInactive) {
                     branches.add(b.name);
                 }
             });
