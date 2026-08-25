@@ -2178,17 +2178,20 @@
         function populateSalesBranchFilter() {
             const select = document.getElementById('salesFilterBranch');
             if (!select) return;
-
+        
             const currentSelection = select.value;
             const branches = new Set();
-
-            // Collect branches from both the branches master list and existing sales data
-            branchesList.forEach(b => { if (b.name) branches.add(b.name); });
-            salesReports.forEach(r => {
-                const name = r.cawangan || r.branch;
-                if (name) branches.add(name);
+        
+            // 1. Only add active branches from the master list
+            branchesList.forEach(b => {
+                // Adjust 'b.status' or 'b.isActive' based on your exact database field name
+                const isActive = b.status ? b.status.toLowerCase() === 'active' : b.isActive !== false;
+                
+                if (b.name && isActive) {
+                    branches.add(b.name);
+                }
             });
-
+        
             select.innerHTML = '<option value="">All Branches</option>';
             branches.forEach(branchName => {
                 const option = document.createElement('option');
@@ -2196,7 +2199,7 @@
                 option.textContent = branchName;
                 select.appendChild(option);
             });
-
+        
             select.value = currentSelection;
         }
 
