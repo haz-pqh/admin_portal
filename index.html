@@ -1962,6 +1962,7 @@
             tbody.innerHTML = '';
             let pendingCount = 0;
         
+            // Filter by selected calendar date if active
             let displayRequests = leaveRequests;
             if (selectedCalendarDate) {
                 displayRequests = leaveRequests.filter(req => {
@@ -1970,6 +1971,7 @@
                 });
             }
         
+            // Add Filter Status Banner in Table area if filtered
             const filterBanner = document.getElementById('leaveTableFilterBanner');
             if (filterBanner) {
                 if (selectedCalendarDate) {
@@ -2007,22 +2009,27 @@
                     const staffDisplayName = typeof getFormattedStaffName === 'function' ? getFormattedStaffName(req) : (req.empName || 'Staff');
                     const currentEmail = (req.userEmail || req.email || '').toLowerCase().trim();
         
+                    // Find overlapping requests from other staff
                     const conflictingRequests = leaveRequests.filter(other => {
                         const isSameRequest = (other.key && other.key === req.key) || (other.id && other.id === req.id);
                         if (isSameRequest) return false;
         
                         const otherEmail = (other.userEmail || other.email || '').toLowerCase().trim();
-                        if (currentEmail && otherEmail === currentEmail) return false;
+                        if (currentEmail && otherEmail === currentEmail) return false; // Exclude current staff member
         
-                        if (other.status === 'REJECTED') return false;
+                        if (other.status === 'REJECTED') return false; // Exclude rejected requests
         
                         if (!req.startDate || !req.endDate || !other.startDate || !other.endDate) return false;
         
                         return req.startDate <= other.endDate && req.endDate >= other.startDate;
                     });
         
+                    // Calculate total staff requesting leave on these dates (Current staff + Other conflicting staff)
+                    const totalStaffOnLeave = 1 + conflictingRequests.length;
+        
                     let conflictAlertHtml = '';
-                    if (conflictingRequests.length > 0) {
+                    // Trigger alert ONLY if MORE THAN 2 staff members requested leave on the same date (3 or more total)
+                    if (totalStaffOnLeave > 2) {
                         const conflictingNames = conflictingRequests.map(c => 
                             typeof getFormattedStaffName === 'function' ? getFormattedStaffName(c) : (c.empName || c.userEmail || 'Staff')
                         ).join(', ');
@@ -2030,7 +2037,7 @@
                         conflictAlertHtml = `
                             <div class="mt-1.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-rose-500/15 border border-rose-500/30 text-[10px] text-rose-400 font-medium">
                                 <i class="fa-solid fa-triangle-exclamation text-rose-400"></i>
-                                <span><strong>Overlap Warning:</strong> ${conflictingNames} also applied for leave on this date.</span>
+                                <span><strong>High Absence Alert:</strong> ${totalStaffOnLeave} staff (${conflictingNames}) requested leave on this date.</span>
                             </div>
                         `;
                     }
