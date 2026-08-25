@@ -1368,35 +1368,50 @@
         }
 
         async function runAutoAbsentCheck() {
-            // Only enforce once the 11:00 AM cutoff has passed for today
+            // Only enforce once the cutoff hour (11:00 AM) has passed for today
             const now = new Date();
             if (now.getHours() < AUTO_ABSENT_CUTOFF_HOUR) return;
 
-            // Need the staff roster to know who to check
             if (!presenceData || Object.keys(presenceData).length === 0) return;
 
-            // Avoid overlapping runs (e.g. presence + attendance_logs updates firing back to back)
+            // Prevent overlapping execution cycles
             if (autoAbsentCheckRunning) return;
             autoAbsentCheckRunning = true;
 
             try {
                 const todayStr = getLocalDateStr(now);
 
-                // Staff who already have ANY attendance_logs entry for today
-                // (clocked in, manually marked, on leave, etc.) — skip these.
-                const alreadyLogged = new Set(
-                    (attendanceLogs || [])
-                        .filter(log => log.date === todayStr && log.userEmail)
-                        .map(log => log.userEmail.toLowerCase())
-                );
+                // Query database directly to prevent race conditions or stale local array duplicates
+                const dbSnap = await db.ref('attendance_logs').once('value');
+                const latestLogs = dbSnap.val() || {};
 
-                // Staff on an APPROVED leave that covers today — skip these too,
-                // since an absence from an approved leave day is not an "absent".
+                // Track emails of staff who already have an attendance entry for today
+                const alreadyLogged = new Set();
+                Object.values(latestLogs).forEach(log => {
+                    const email = log.userEmail || log.email;
+                    if (log.date === todayStr && email) {
+                        alreadyLogged.add(email.toLowerCase().trim());
+                    }
+                });
+
+                // Skip staff currently in an active duty session for today
+                if (activeSessionData && activeSessionData.userEmail) {
+                    const activeEmail = activeSessionData.userEmail.toLowerCase().trim();
+                    const sessionDate = activeSessionData.clockInTime ? getLocalDateStr(new Date(activeSessionData.clockInTime)) : todayStr;
+                    if (sessionDate === todayStr) {
+                        alreadyLogged.add(activeEmail);
+                    }
+                }
+
+                // Skip staff on approved leave covering today
                 const onApprovedLeaveToday = new Set(
                     (leaveRequests || [])
-                        .filter(req => req.status === 'APPROVED' && req.userEmail && req.startDate && req.endDate &&
-                            todayStr >= req.startDate && todayStr <= req.endDate)
-                        .map(req => req.userEmail.toLowerCase())
+                        .filter(req => {
+                            const email = req.userEmail || req.email;
+                            return req.status === 'APPROVED' && email && req.startDate && req.endDate &&
+                                todayStr >= req.startDate && todayStr <= req.endDate;
+                        })
+                        .map(req => (req.userEmail || req.email).toLowerCase().trim())
                 );
 
                 const staffEntries = Object.values(presenceData || {});
@@ -1404,10 +1419,11 @@
 
                 staffEntries.forEach(staff => {
                     const rawEmail = staff.email || '';
-                    const email = rawEmail.toLowerCase();
+                    const email = rawEmail.toLowerCase().trim();
                     if (!email) return;
-                    if (alreadyLogged.has(email)) return;
-                    if (onApprovedLeaveToday.has(email)) return;
+
+                    // DO NOT EXECUTE if attendance or approved leave already exists for today
+                    if (alreadyLogged.has(email) || onApprovedLeaveToday.has(email)) return;
 
                     const emailPrefix = email.split('@')[0];
                     const empName = staff.name || staff.empName || emailPrefix.replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -1428,9 +1444,7 @@
                         timestamp: Date.now()
                     };
 
-                    // Mark as logged locally right away so a second staff record
-                    // sharing the same email (shouldn't happen, but just in case)
-                    // and any near-simultaneous re-run don't double-push.
+                    // Register locally immediately to prevent multi-push within the loop
                     alreadyLogged.add(email);
 
                     pushOps.push(
@@ -1446,6 +1460,8 @@
                         showToast(`${pushOps.length} staff auto-marked ABSENT (no clock-in by ${AUTO_ABSENT_CUTOFF_HOUR}:00 AM).`, 'error');
                     }
                 }
+            } catch (err) {
+                console.error('Error executing auto-absent check:', err);
             } finally {
                 autoAbsentCheckRunning = false;
             }
