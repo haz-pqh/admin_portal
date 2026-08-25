@@ -1958,10 +1958,10 @@
             const tbody = document.getElementById('leaveRequestsTableBody');
             const pendingBadge = document.getElementById('pendingLeaveBadge');
             if (!tbody) return;
-
+        
             tbody.innerHTML = '';
             let pendingCount = 0;
-
+        
             // Filter by selected calendar date if active
             let displayRequests = leaveRequests;
             if (selectedCalendarDate) {
@@ -1970,7 +1970,7 @@
                     return selectedCalendarDate >= req.startDate && selectedCalendarDate <= req.endDate;
                 });
             }
-
+        
             // Add Filter Status Banner in Table area if filtered
             const filterBanner = document.getElementById('leaveTableFilterBanner');
             if (filterBanner) {
@@ -1990,7 +1990,7 @@
                     filterBanner.classList.add('hidden');
                 }
             }
-
+        
             if (displayRequests.length === 0) {
                 tbody.innerHTML = `
                     <tr>
@@ -2001,20 +2001,53 @@
             } else {
                 displayRequests.forEach(req => {
                     if (req.status === 'PENDING') pendingCount++;
-
+        
                     let statusBadge = 'bg-amber-500/20 text-amber-400 border-amber-500/40';
                     if (req.status === 'APPROVED') statusBadge = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
                     if (req.status === 'REJECTED') statusBadge = 'bg-rose-500/20 text-rose-400 border-rose-500/40';
-
+        
                     const staffDisplayName = typeof getFormattedStaffName === 'function' ? getFormattedStaffName(req) : (req.empName || 'Staff');
-
+                    const currentEmail = (req.userEmail || req.email || '').toLowerCase().trim();
+        
+                    // ---------------- CONFLICT DETECTION LOGIC ----------------
+                    const conflictingRequests = leaveRequests.filter(other => {
+                        const isSameRequest = (other.key && other.key === req.key) || (other.id && other.id === req.id);
+                        if (isSameRequest) return false;
+        
+                        const otherEmail = (other.userEmail || other.email || '').toLowerCase().trim();
+                        if (currentEmail && otherEmail === currentEmail) return false; // Ignore same staff member
+        
+                        if (other.status === 'REJECTED') return false; // Ignore rejected leave requests
+        
+                        if (!req.startDate || !req.endDate || !other.startDate || !other.endDate) return false;
+        
+                        // Check date range overlap formula
+                        return req.startDate <= other.endDate && req.endDate >= other.startDate;
+                    });
+        
+                    let conflictAlertHtml = '';
+                    if (conflictingRequests.length > 0) {
+                        const conflictingNames = conflictingRequests.map(c => 
+                            typeof getFormattedStaffName === 'function' ? getFormattedStaffName(c) : (c.empName || c.userEmail || 'Staff')
+                        ).join(', ');
+        
+                        conflictAlertHtml = `
+                            <div class="mt-1.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-rose-500/15 border border-rose-500/30 text-[10px] text-rose-400 font-medium">
+                                <i class="fa-solid fa-triangle-exclamation text-rose-400"></i>
+                                <span><strong>Overlap Warning:</strong> ${conflictingNames} also applied for leave on this date.</span>
+                            </div>
+                        `;
+                    }
+                    // -----------------------------------------------------------
+        
                     const row = document.createElement('tr');
                     row.className = 'hover:bg-slate-900/50 transition';
                     row.innerHTML = `
                         <td class="p-3 text-slate-400 text-[11px]">${req.appliedAt ? new Date(req.appliedAt).toLocaleDateString() : '--'}</td>
                         <td class="p-3">
                             <span class="font-semibold text-slate-200 block capitalize">${staffDisplayName}</span>
-                            <span class="text-[10px] text-slate-500">${req.userEmail || ''}</span>
+                            <span class="text-[10px] text-slate-500 block">${req.userEmail || ''}</span>
+                            ${conflictAlertHtml}
                         </td>
                         <td class="p-3 text-indigo-400 font-semibold uppercase text-[10px]">${req.leaveType || 'Leave'}</td>
                         <td class="p-3 font-mono text-[11px] text-slate-300">${req.startDate} to ${req.endDate}</td>
@@ -2044,7 +2077,7 @@
                     tbody.appendChild(row);
                 });
             }
-
+        
             if (pendingBadge) {
                 document.getElementById('metricPendingLeaves').textContent = pendingCount;
                 if (pendingCount > 0) {
