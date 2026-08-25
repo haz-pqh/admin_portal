@@ -2185,7 +2185,7 @@
             // 1. Only add active branches from the master list
             branchesList.forEach(b => {
                 // Adjust 'b.status' or 'b.isActive' based on your exact database field name
-                const isActive = b.status ? b.status.toLowerCase() === 'active' : b.isActive !== false;
+                const isActive = b.status.toLowerCase() === 'active';
                 
                 if (b.name && isActive) {
                     branches.add(b.name);
