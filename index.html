@@ -2290,7 +2290,7 @@
 
             const addedBranches = new Set();
             branchesList.forEach(b => {
-                if (b.name) {
+                if (b.name && b.status.toUpperCase() === 'INACTIVE') {
                     const opt = document.createElement('option');
                     opt.value = b.name.toLowerCase().trim();
                     opt.textContent = b.name;
