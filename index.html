@@ -2009,19 +2009,18 @@
                     const staffDisplayName = typeof getFormattedStaffName === 'function' ? getFormattedStaffName(req) : (req.empName || 'Staff');
                     const currentEmail = (req.userEmail || req.email || '').toLowerCase().trim();
         
-                    // ---------------- CONFLICT DETECTION LOGIC ----------------
+                    // Conflict Detection Logic
                     const conflictingRequests = leaveRequests.filter(other => {
                         const isSameRequest = (other.key && other.key === req.key) || (other.id && other.id === req.id);
                         if (isSameRequest) return false;
         
                         const otherEmail = (other.userEmail || other.email || '').toLowerCase().trim();
-                        if (currentEmail && otherEmail === currentEmail) return false; // Ignore same staff member
+                        if (currentEmail && otherEmail === currentEmail) return false;
         
-                        if (other.status === 'REJECTED') return false; // Ignore rejected leave requests
+                        if (other.status === 'REJECTED') return false;
         
                         if (!req.startDate || !req.endDate || !other.startDate || !other.endDate) return false;
         
-                        // Check date range overlap formula
                         return req.startDate <= other.endDate && req.endDate >= other.startDate;
                     });
         
@@ -2038,7 +2037,6 @@
                             </div>
                         `;
                     }
-                    // -----------------------------------------------------------
         
                     const row = document.createElement('tr');
                     row.className = 'hover:bg-slate-900/50 transition';
@@ -2072,6 +2070,9 @@
                             <button onclick="openEditLeaveModal('${req.key}')" class="px-2 py-1 rounded bg-indigo-600/20 hover:bg-indigo-600 text-indigo-400 hover:text-white border border-indigo-500/30 text-[10px] font-bold transition">
                                 <i class="fa-solid fa-pen-to-square"></i> Edit
                             </button>
+                            <button onclick="deleteLeaveRequest('${req.key}')" class="px-2 py-1 rounded bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/30 text-[10px] font-bold transition">
+                                <i class="fa-solid fa-trash-can"></i> Delete
+                            </button>
                         </td>
                     `;
                     tbody.appendChild(row);
@@ -2085,6 +2086,25 @@
                     pendingBadge.classList.remove('hidden');
                 } else {
                     pendingBadge.classList.add('hidden');
+                }
+            }
+        }
+
+        async function deleteLeaveRequest(key) {
+            if (!key) return;
+        
+            const confirmed = confirm("Are you sure you want to delete this leave request? This action cannot be undone.");
+            if (!confirmed) return;
+        
+            try {
+                await db.ref(`leave_requests/${key}`).remove();
+                if (typeof showToast === 'function') {
+                    showToast('Leave request deleted successfully.', 'success');
+                }
+            } catch (err) {
+                console.error('Failed to delete leave request:', err);
+                if (typeof showToast === 'function') {
+                    showToast('Failed to delete leave request.', 'error');
                 }
             }
         }
