@@ -32,6 +32,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
 </head>
 <body class="h-full text-slate-100 font-sans antialiased bg-slate-950 selection:bg-indigo-500 selection:text-white">
 
@@ -460,6 +461,30 @@
                             <i class="fa-solid fa-paper-plane"></i> Submit Payslip
                         </button>
                     </form>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+                    <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-file-invoice text-emerald-400"></i> Uploaded Payslips
+                        </h3>
+                        <span class="text-[10px] text-slate-400">Stored securely in Firebase Storage</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-950 text-slate-400 uppercase text-[10px] border-b border-slate-800">
+                                <tr>
+                                    <th class="p-3">Staff</th>
+                                    <th class="p-3">Email</th>
+                                    <th class="p-3">Period</th>
+                                    <th class="p-3">Net Salary</th>
+                                    <th class="p-3">Uploaded</th>
+                                    <th class="p-3 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="payslipTableBody" class="divide-y divide-slate-800/60"></tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
 
@@ -941,6 +966,7 @@
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.database();
+        const storage = firebase.storage();
         const googleProvider = new firebase.auth.GoogleAuthProvider();
 
         const ADMIN_EMAILS = ["hassanhazril@gmail.com"];
@@ -951,6 +977,15 @@
         let leaveRequests = [];
         let salesReports = [];
         let branchesList = [];
+        let staffDirectory = new Map();
+        let realtimeListenersBound = false;
+        let autoAbsentIntervalId = null;
+        let payslipRecords = [];
+
+        const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+        const MAX_PAYSLIP_BYTES = 15 * 1024 * 1024;
+        const ALLOWED_ATTACHMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+        const ALLOWED_PAYSLIP_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
 
         let debounceTimer;
 
@@ -1013,10 +1048,95 @@
             });
         });
 
+        function isAuthorizedAdmin() {
+            const user = auth.currentUser;
+            return !!user && !!user.email && ADMIN_EMAILS.includes(user.email.toLowerCase().trim());
+        }
+
+        function requireAuthorizedAdmin() {
+            if (!isAuthorizedAdmin()) {
+                throw new Error('Unauthorized: an authenticated admin account is required.');
+            }
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function safeFileName(name) {
+            return String(name || 'file')
+                .replace(/[^a-zA-Z0-9._-]/g, '_')
+                .slice(0, 120);
+        }
+
+        function validateFile(file, maxBytes, allowedTypes) {
+            if (!file) return;
+            if (file.size > maxBytes) {
+                throw new Error(`File is too large. Maximum allowed size is ${Math.round(maxBytes / (1024 * 1024))} MB.`);
+            }
+            if (!allowedTypes.includes(file.type)) {
+                throw new Error(`Unsupported file type: ${file.type || 'unknown'}.`);
+            }
+        }
+
+        function rebuildStaffDirectory() {
+            const map = new Map();
+
+            const addStaff = (staff) => {
+                const email = String(staff?.email || staff?.userEmail || '').trim();
+                if (!email) return;
+                const key = email.toLowerCase();
+                const fallbackName = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                map.set(key, {
+                    name: staff.name || staff.empName || fallbackName,
+                    email
+                });
+            };
+
+            Object.values(presenceData || {}).forEach(addStaff);
+            (attendanceLogs || []).forEach(addStaff);
+            (leaveRequests || []).forEach(addStaff);
+            staffDirectory = map;
+            populateStaffDropdowns();
+        }
+
+        function populateStaffDropdowns() {
+            const selects = [
+                document.getElementById('manualStaffSelect'),
+                document.getElementById('payslipStaffSelect')
+            ].filter(Boolean);
+
+            selects.forEach(select => {
+                const current = select.value;
+                select.innerHTML = '<option value="">Select Staff Member</option>';
+                Array.from(staffDirectory.values())
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .forEach(staff => {
+                        const option = document.createElement('option');
+                        option.value = JSON.stringify(staff);
+                        option.textContent = `${staff.name} (${staff.email})`;
+                        select.appendChild(option);
+                    });
+                if (current && Array.from(select.options).some(o => o.value === current)) {
+                    select.value = current;
+                }
+            });
+        }
+
         function generateAutoBranchCode() {
-            const prefix = "BR-";
-            const nextNum = (branchesList.length + 1).toString().padStart(3, '0');
-            return `${prefix}${nextNum}`;
+            const used = new Set(
+                branchesList
+                    .map(b => String(b.code || '').trim().toUpperCase())
+                    .filter(Boolean)
+            );
+            let next = 1;
+            while (used.has(`BR-${String(next).padStart(3, '0')}`)) next++;
+            return `BR-${String(next).padStart(3, '0')}`;
         }
 
         function showToast(message, type = 'info') {
@@ -1066,6 +1186,7 @@
             if (user) {
                 const userEmail = (user.email || '').toLowerCase();
                 if (!ADMIN_EMAILS.includes(userEmail)) {
+                    detachRealtimeListeners();
                     auth.signOut().then(() => {
                         showToast(`Access Denied: ${userEmail} is not authorized for Admin portal.`, 'error');
                     });
@@ -1078,6 +1199,7 @@
 
                 initRealtimeListeners();
             } else {
+                detachRealtimeListeners();
                 portalView.classList.add('hidden');
                 loginView.classList.remove('hidden');
             }
@@ -1087,13 +1209,28 @@
             auth.signInWithPopup(googleProvider).catch((err) => showToast(err.message, 'error'));
         }
 
+        function detachRealtimeListeners() {
+            ['presence', 'active_session', 'branches', 'attendance_logs', 'leave_requests', 'sales_updates', 'payslips']
+                .forEach(path => db.ref(path).off());
+            realtimeListenersBound = false;
+            if (autoAbsentIntervalId) {
+                clearInterval(autoAbsentIntervalId);
+                autoAbsentIntervalId = null;
+            }
+        }
+
         function handleLogout() {
+            detachRealtimeListeners();
             auth.signOut().then(() => showToast("Signed out from admin portal."));
         }
 
         function initRealtimeListeners() {
+            if (realtimeListenersBound) return;
+            realtimeListenersBound = true;
+
             db.ref('presence').on('value', (snap) => {
                 presenceData = snap.val() || {};
+                rebuildStaffDirectory();
                 renderPresenceUI();
                 runAutoAbsentCheck();
             });
@@ -1110,19 +1247,19 @@
                     Object.keys(val).forEach(key => branchesList.push({ key, ...val[key] }));
                 }
                 renderBranchesUI();
+                renderSalesUI();
             });
 
-            // Listen to Firebase attendance_logs and attach the record key
             db.ref('attendance_logs').on('value', (snap) => {
                 const val = snap.val();
                 attendanceLogs = [];
                 if (val) {
                     Object.keys(val).forEach(key => {
-                        // MUST explicitly include key here
-                        attendanceLogs.push({ key: key, ...val[key] });
+                        attendanceLogs.push({ key, ...val[key] });
                     });
-                    attendanceLogs.reverse(); // Display newest entries first
+                    attendanceLogs.reverse();
                 }
+                rebuildStaffDirectory();
                 renderAttendanceTable();
                 runAutoAbsentCheck();
             });
@@ -1135,20 +1272,11 @@
                         ...childSnapshot.val()
                     });
                 });
-
-                // 1. Render the table
+                rebuildStaffDirectory();
                 renderLeavesUI();
-                
-                // 2. ADD THIS LINE to always draw the calendar
-                renderLeaveCalendar(); 
-
+                renderLeaveCalendar();
                 runAutoAbsentCheck();
             });
-
-            // Kick off the periodic Auto-Absent enforcement (checks immediately,
-            // then re-checks every 5 minutes in case the 11:00 AM cutoff is
-            // crossed while the dashboard stays open).
-            scheduleAutoAbsentCheck();
 
             db.ref('sales_updates').on('value', (snap) => {
                 const val = snap.val();
@@ -1162,14 +1290,15 @@
                 renderSalesUI();
             });
 
-            db.ref('users').on('value', (snap) => {
-                const val = snap.val();
-                usersList = [];
-                if (val) {
-                    Object.keys(val).forEach(key => usersList.push({ key, ...val[key] }));
-                }
-                populateStaffDropdown(); // Re-populate dropdown when user list changes
+            db.ref('payslips').on('value', (snap) => {
+                const val = snap.val() || {};
+                payslipRecords = Object.keys(val)
+                    .map(key => ({ key, ...val[key] }))
+                    .sort((a, b) => (b.uploadedAt || 0) - (a.uploadedAt || 0));
+                renderPayslipList();
             });
+
+            scheduleAutoAbsentCheck();
         }
 
         /* BRANCH MANAGEMENT FUNCTIONS */
@@ -1193,13 +1322,13 @@
                     row.className = 'hover:bg-slate-900/50 transition';
                     row.innerHTML = `
                         <td class="p-3">
-                            <span class="font-bold text-slate-200 block">${branch.name || '--'}</span>
-                            <span class="text-[10px] text-indigo-400 font-mono">${branch.code || ''}</span>
+                            <span class="font-bold text-slate-200 block">${escapeHtml(branch.name || '--')}</span>
+                            <span class="text-[10px] text-indigo-400 font-mono">${escapeHtml(branch.code || '')}</span>
                         </td>
-                        <td class="p-3 text-slate-400 max-w-xs truncate" title="${branch.address || ''}">${branch.address || '--'}</td>
+                        <td class="p-3 text-slate-400 max-w-xs truncate" title="${escapeHtml(branch.address || '')}">${escapeHtml(branch.address || '--')}</td>
                         <td class="p-3">
                             <span class="px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusBadge}">
-                                ${branch.status || 'INACTIVE'}
+                                ${escapeHtml(branch.status || 'INACTIVE')}
                             </span>
                         </td>
                         <td class="p-3 text-right space-x-1">
@@ -1247,37 +1376,52 @@
             document.getElementById('branchModal').classList.add('hidden');
         }
 
-        function handleBranchSubmit(e) {
+        async function handleBranchSubmit(e) {
             e.preventDefault();
-            const key = document.getElementById('branchKey').value;
-            
-            const payload = {
-                code: document.getElementById('branchCode').value.trim(),
-                name: document.getElementById('branchName').value.trim(),
-                address: document.getElementById('branchAddress').value.trim(),
-                status: document.getElementById('branchStatus').value,
-                updatedAt: Date.now()
-            };
 
-            if (key) {
-                db.ref(`branches/${key}`).update(payload).then(() => {
-                    showToast("Branch details updated successfully.");
-                    closeBranchModal();
-                }).catch(err => showToast(err.message, 'error'));
-            } else {
-                payload.createdAt = Date.now();
-                db.ref('branches').push(payload).then(() => {
-                    showToast("New branch created successfully.");
-                    closeBranchModal();
-                }).catch(err => showToast(err.message, 'error'));
+            try {
+                requireAuthorizedAdmin();
+
+                const key = document.getElementById('branchKey').value;
+                const code = document.getElementById('branchCode').value.trim().toUpperCase();
+                const name = document.getElementById('branchName').value.trim();
+                const address = document.getElementById('branchAddress').value.trim();
+                const status = document.getElementById('branchStatus').value;
+
+                if (!code || !name || !address) throw new Error('Branch code, name, and address are required.');
+
+                const duplicate = branchesList.find(b =>
+                    b.key !== key && String(b.code || '').trim().toUpperCase() === code
+                );
+                if (duplicate) throw new Error(`Branch code ${code} is already in use.`);
+
+                const payload = { code, name, address, status, updatedAt: Date.now() };
+
+                if (key) {
+                    await db.ref(`branches/${key}`).update(payload);
+                    showToast("Branch details updated successfully.", 'success');
+                } else {
+                    payload.createdAt = Date.now();
+                    await db.ref('branches').push(payload);
+                    showToast("New branch created successfully.", 'success');
+                }
+                closeBranchModal();
+            } catch (err) {
+                console.error(err);
+                showToast(err.message || 'Unable to save branch.', 'error');
             }
         }
 
-        function deleteBranch(key) {
-            if (confirm("Are you sure you want to remove this branch from database?")) {
-                db.ref(`branches/${key}`).remove().then(() => {
-                    showToast("Branch removed successfully.");
-                }).catch(err => showToast(err.message, 'error'));
+
+        async function deleteBranch(key) {
+            if (!key || !confirm("Are you sure you want to remove this branch from database?")) return;
+            try {
+                requireAuthorizedAdmin();
+                await db.ref(`branches/${key}`).remove();
+                showToast("Branch removed successfully.", 'success');
+            } catch (err) {
+                console.error(err);
+                showToast(err.message || 'Unable to remove branch.', 'error');
             }
         }
 
@@ -1368,32 +1512,9 @@
 
         // Populate Staff Dropdown dynamically from Firebase 'presence' node
         function initStaffDropdown() {
-            const select = document.getElementById('manualStaffSelect');
-            if (!select) return;
-
-            db.ref('presence').on('value', (snapshot) => {
-                const val = snapshot.val();
-                select.innerHTML = '<option value="">Select Staff Member</option>';
-
-                if (!val) return;
-
-                Object.keys(val).forEach(uid => {
-                    const staff = val[uid];
-                    const email = staff.email || '';
-
-                    if (email) {
-                        // Extract clean display name from email (e.g. hassanhazril -> Hassan Hazril)
-                        const emailPrefix = email.split('@')[0];
-                        const formattedName = staff.name || staff.empName || emailPrefix.replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-
-                        const option = document.createElement('option');
-                        option.value = JSON.stringify({ name: formattedName, email: email });
-                        option.textContent = `${formattedName} (${email})`;
-                        select.appendChild(option);
-                    }
-                });
-            });
+            rebuildStaffDirectory();
         }
+
 
         // ==================== AUTO-ABSENT RULE ====================
         // Business rule: if a staff member has not clocked in between
@@ -1425,10 +1546,11 @@
             const now = new Date();
             if (now.getHours() < AUTO_ABSENT_CUTOFF_HOUR) return;
 
-            if (!presenceData || Object.keys(presenceData).length === 0) return;
+            if (!staffDirectory || staffDirectory.size === 0) return;
 
             // Prevent overlapping execution cycles
             if (autoAbsentCheckRunning) return;
+            if (!isAuthorizedAdmin()) return;
             autoAbsentCheckRunning = true;
 
             try {
@@ -1467,7 +1589,7 @@
                         .map(req => (req.userEmail || req.email).toLowerCase().trim())
                 );
 
-                const staffEntries = Object.values(presenceData || {});
+                const staffEntries = Array.from(staffDirectory.values());
                 const pushOps = [];
 
                 staffEntries.forEach(staff => {
@@ -1475,11 +1597,10 @@
                     const email = rawEmail.toLowerCase().trim();
                     if (!email) return;
 
-                    // DO NOT EXECUTE if attendance or approved leave already exists for today
                     if (alreadyLogged.has(email) || onApprovedLeaveToday.has(email)) return;
 
                     const emailPrefix = email.split('@')[0];
-                    const empName = staff.name || staff.empName || emailPrefix.replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                    const empName = staff.name || emailPrefix.replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
                     const absentRecord = {
                         empName,
@@ -1523,102 +1644,101 @@
         // Runs the check immediately, then re-checks every 5 minutes so staff
         // get marked ABSENT soon after 11:00 AM even without a manual refresh.
         function scheduleAutoAbsentCheck() {
+            if (autoAbsentIntervalId) return;
             runAutoAbsentCheck();
-            setInterval(runAutoAbsentCheck, 5 * 60 * 1000);
+            autoAbsentIntervalId = setInterval(runAutoAbsentCheck, 5 * 60 * 1000);
         }
 
         // Push to Firebase Realtime Database
-        function saveAttendanceRecord(payload, submitBtn, originalBtnHTML) {
-            return db.ref('attendance_logs').push(payload)
-                .then(() => {
-                    if (typeof showToast === 'function') {
-                        showToast("Emergency leave/attendance entry saved.", "success");
-                    }
-                    resetManualAttendanceForm();
-                })
-                .catch(err => {
-                    if (typeof showToast === 'function') {
-                        showToast(err.message, 'error');
-                    }
-                })
-                .finally(() => {
-                    // Re-enable and restore button state when finished
-                    if (submitBtn) {
-                        submitBtn.disabled = false;
-                        submitBtn.classList.remove('opacity-75', 'cursor-not-allowed');
-                        submitBtn.innerHTML = originalBtnHTML;
-                    }
-                });
+        async function saveAttendanceRecord(payload, submitBtn, originalBtnHTML) {
+            try {
+                requireAuthorizedAdmin();
+                await db.ref('attendance_logs').push(payload);
+                showToast("Emergency leave/attendance entry saved.", "success");
+                resetManualAttendanceForm();
+            } catch (err) {
+                console.error(err);
+                showToast(err.message || 'Failed to save attendance entry.', 'error');
+            } finally {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+                    submitBtn.innerHTML = originalBtnHTML;
+                }
+            }
         }
 
-        // Form Handler for Manual / Emergency Entry
-        function handleManualAttendanceSubmit(e) {
+        async function handleManualAttendanceSubmit(e) {
             e.preventDefault();
 
             const staffSelectValue = document.getElementById('manualStaffSelect').value;
             if (!staffSelectValue) {
-                if (typeof showToast === 'function') showToast("Please select a staff member.", "error");
+                showToast("Please select a staff member.", "error");
                 return;
             }
 
-            // Get the submit button inside the form
             const submitBtn = e.target.querySelector('button[type="submit"]') || document.getElementById('manualSubmitBtn');
-            let originalBtnHTML = '';
+            const originalBtnHTML = submitBtn ? submitBtn.innerHTML : '';
 
-            // Disable button and show spinner to prevent duplicate clicks
-            if (submitBtn) {
-                originalBtnHTML = submitBtn.innerHTML;
-                submitBtn.disabled = true;
-                submitBtn.classList.add('opacity-75', 'cursor-not-allowed');
-                submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> Saving...`;
-            }
+            try {
+                requireAuthorizedAdmin();
 
-            // Extract selected staff details
-            const selectedStaff = JSON.parse(staffSelectValue);
-            const empName = selectedStaff.name;
-            const userEmail = selectedStaff.email;
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.classList.add('opacity-75', 'cursor-not-allowed');
+                    submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Saving...';
+                }
 
-            const date = document.getElementById('manualAttendanceDate').value;
-            const punctualityStatus = document.getElementById('manualStatus').value;
-            const clockIn = document.getElementById('manualClockIn').value || '--';
-            const clockOut = document.getElementById('manualClockOut').value || '--';
-            const remarks = document.getElementById('manualRemarks').value.trim();
-            const fileInput = document.getElementById('manualAttachment');
-            const file = fileInput ? fileInput.files[0] : null;
+                const selectedStaff = JSON.parse(staffSelectValue);
+                const date = document.getElementById('manualAttendanceDate').value;
+                const punctualityStatus = document.getElementById('manualStatus').value;
+                const clockIn = document.getElementById('manualClockIn').value || '--';
+                const clockOut = document.getElementById('manualClockOut').value || '--';
+                const remarks = document.getElementById('manualRemarks').value.trim();
+                const file = document.getElementById('manualAttachment')?.files[0] || null;
 
-            const recordData = {
-                empName,
-                userEmail,
-                date,
-                punctualityStatus,
-                clockIn,
-                clockOut,
-                remarks,
-                durationText: (clockIn !== '--' && clockOut !== '--') ? `${clockIn} - ${clockOut}` : 'Full Day',
-                createdByAdmin: true,
-                timestamp: Date.now()
-            };
+                if (!date) throw new Error('Attendance date is required.');
+                if (file) validateFile(file, MAX_ATTACHMENT_BYTES, ALLOWED_ATTACHMENT_TYPES);
 
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function (event) {
-                    recordData.hasAttachment = true;
-                    recordData.attachmentBase64 = event.target.result;
+                const recordData = {
+                    empName: selectedStaff.name,
+                    userEmail: selectedStaff.email,
+                    date,
+                    punctualityStatus,
+                    clockIn,
+                    clockOut,
+                    remarks,
+                    durationText: (clockIn !== '--' && clockOut !== '--') ? `${clockIn} - ${clockOut}` : 'Full Day',
+                    createdByAdmin: true,
+                    timestamp: Date.now(),
+                    hasAttachment: !!file
+                };
+
+                if (file) {
+                    const storagePath = `attendance/${encodeURIComponent(selectedStaff.email.toLowerCase())}/${escapeHtml(date)}/${Date.now()}_${safeFileName(file.name)}`;
+                    const snapshot = await storage.ref(storagePath).put(file, {
+                        contentType: file.type,
+                        customMetadata: {
+                            uploadedBy: auth.currentUser.email,
+                            staffEmail: selectedStaff.email,
+                            attendanceDate: date
+                        }
+                    });
+                    recordData.attachmentUrl = await snapshot.ref.getDownloadURL();
+                    recordData.attachmentPath = storagePath;
                     recordData.attachmentFileName = file.name;
-                    saveAttendanceRecord(recordData, submitBtn, originalBtnHTML);
-                };
-                reader.onerror = function () {
-                    if (typeof showToast === 'function') showToast("Failed to read attachment file.", "error");
-                    if (submitBtn) {
-                        submitBtn.disabled = false;
-                        submitBtn.classList.remove('opacity-75', 'cursor-not-allowed');
-                        submitBtn.innerHTML = originalBtnHTML;
-                    }
-                };
-                reader.readAsDataURL(file);
-            } else {
-                recordData.hasAttachment = false;
-                saveAttendanceRecord(recordData, submitBtn, originalBtnHTML);
+                    recordData.attachmentContentType = file.type;
+                }
+
+                await saveAttendanceRecord(recordData, submitBtn, originalBtnHTML);
+            } catch (err) {
+                console.error(err);
+                showToast(err.message || 'Failed to save attendance entry.', 'error');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+                    submitBtn.innerHTML = originalBtnHTML;
+                }
             }
         }
 
@@ -1655,23 +1775,23 @@
                 const row = document.createElement('tr');
                 row.className = 'hover:bg-slate-900/50 transition';
                 row.innerHTML = `
-                    <td class="p-3 text-slate-300 font-mono text-[11px]">${log.date || '--'}</td>
+                    <td class="p-3 text-slate-300 font-mono text-[11px]">${escapeHtml(log.date || '--')}</td>
                     <td class="p-3">
-                        <span class="font-semibold text-slate-200 block">${log.empName || 'Staff'}</span>
-                        <span class="text-[10px] text-slate-500">${log.userEmail || ''}</span>
+                        <span class="font-semibold text-slate-200 block">${escapeHtml(log.empName || 'Staff')}</span>
+                        <span class="text-[10px] text-slate-500">${escapeHtml(log.userEmail || '')}</span>
                     </td>
-                    <td class="p-3 font-mono text-slate-300">${log.clockIn || '--'}</td>
-                    <td class="p-3 font-mono text-slate-300">${log.clockOut || '--'}</td>
-                    <td class="p-3 text-slate-400 text-xs">${log.remarks || log.durationText || '--'}</td>
+                    <td class="p-3 font-mono text-slate-300">${escapeHtml(log.clockIn || '--')}</td>
+                    <td class="p-3 font-mono text-slate-300">${escapeHtml(log.clockOut || '--')}</td>
+                    <td class="p-3 text-slate-400 text-xs">${escapeHtml(log.remarks || log.durationText || '--')}</td>
                     <td class="p-3">
                         <span class="px-2 py-0.5 rounded-full text-[9px] font-bold border ${badgeClass}">
-                            ${status}
+                            ${escapeHtml(status)}
                         </span>
                     </td>
                     <td class="p-3 text-right whitespace-nowrap">
                         <div class="inline-flex items-center justify-end gap-1.5">
-                            ${log.hasAttachment && log.mcBase64 ? `
-                                <button onclick="viewAttachment('${log.key}')" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-indigo-400 text-[11px] font-semibold border border-slate-700 inline-flex items-center gap-1 transition">
+                            ${(log.hasAttachment && (log.attachmentUrl || log.attachmentBase64)) ? `
+                                <button onclick="viewAttendanceAttachment('${log.key}')" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-indigo-400 text-[11px] font-semibold border border-slate-700 inline-flex items-center gap-1 transition">
                                     <i class="fa-solid fa-paperclip text-[10px]"></i> File
                                 </button>
                             ` : ''}
@@ -1759,6 +1879,7 @@
             };
         
             try {
+                requireAuthorizedAdmin();
                 await db.ref(`attendance_logs/${key}`).update(updates);
                 closeEditAttendanceModal();
                 if (typeof showToast === 'function') {
@@ -1778,6 +1899,7 @@
             if (!confirm('Are you sure you want to delete this attendance log?')) return;
         
             try {
+                requireAuthorizedAdmin();
                 await db.ref(`attendance_logs/${key}`).remove();
                 if (typeof showToast === 'function') {
                     showToast('Attendance record deleted.', 'success');
@@ -1967,6 +2089,7 @@
             saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> Updating...`;
 
             try {
+                requireAuthorizedAdmin();
                 const updateData = {
                     empName: selectedStaff.name,
                     userEmail: selectedStaff.email,
@@ -1995,84 +2118,50 @@
 
         function viewAttendanceAttachment(key) {
             if (!key || key === 'undefined') {
-                if (typeof showToast === 'function') showToast("Invalid record ID.", "error");
+                showToast("Invalid record ID.", "error");
                 return;
             }
 
-            // Find record by key in attendanceLogs array
             const log = attendanceLogs.find(a => a.key === key);
-            
-            if (!log || !log.attachmentBase64) {
-                if (typeof showToast === 'function') showToast("No attachment found for this entry.", "error");
+            const source = log?.attachmentUrl || log?.attachmentBase64;
+            if (!log || !source) {
+                showToast("No attachment found for this entry.", "error");
                 return;
             }
 
             const modal = document.getElementById('attachmentModal');
             const viewer = document.getElementById('attachmentViewer');
             const title = document.getElementById('attachmentModalTitle');
+            if (!modal || !viewer || !title) return;
 
-            if (!modal || !viewer) {
-                alert("Attachment modal element missing in HTML.");
-                return;
-            }
-
-            title.textContent = `Attachment: ${log.attachmentFileName || 'Document.pdf'}`;
+            title.textContent = `Attachment: ${log.attachmentFileName || 'Document'}`;
             viewer.innerHTML = '';
 
-            const base64Data = log.attachmentBase64;
-
-            // Handle PDF rendering using Blob URL
-            if (base64Data.includes('data:application/pdf')) {
-                try {
-                    const base64Parts = base64Data.split(',');
-                    const contentType = base64Parts[0].match(/:(.*?);/)[1];
-                    const raw = window.atob(base64Parts[1]);
-                    const rawLength = raw.length;
-                    const uInt8Array = new Uint8Array(rawLength);
-
-                    for (let i = 0; i < rawLength; ++i) {
-                        uInt8Array[i] = raw.charCodeAt(i);
-                    }
-
-                    const blob = new Blob([uInt8Array], { type: contentType });
-                    const blobUrl = URL.createObjectURL(blob);
-
-                    viewer.innerHTML = `
-                        <div class="w-full flex flex-col items-center gap-3">
-                            <iframe src="${blobUrl}" class="w-full h-[65vh] rounded-xl border border-slate-800"></iframe>
-                            <a href="${blobUrl}" target="_blank" download="${log.attachmentFileName || 'document.pdf'}" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2">
-                                <i class="fa-solid fa-download"></i> Open / Download PDF
-                            </a>
-                        </div>
-                    `;
-                } catch (err) {
-                    viewer.innerHTML = `
-                        <div class="text-center p-6">
-                            <p class="text-slate-400 text-xs mb-3">Unable to embed PDF preview.</p>
-                            <a href="${base64Data}" download="${log.attachmentFileName || 'document.pdf'}" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">
-                                Download PDF File
-                            </a>
-                        </div>
-                    `;
-                }
-            } 
-            // Handle Image files
-            else if (base64Data.includes('data:image/')) {
-                viewer.innerHTML = `<img src="${base64Data}" class="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg">`;
-            } 
-            // Default fallback
-            else {
-                viewer.innerHTML = `
-                    <a href="${base64Data}" download="${log.attachmentFileName || 'attachment'}" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">
-                        Download File (${log.attachmentFileName || 'Attachment'})
-                    </a>
-                `;
+            if (source.startsWith('data:image/') || (log.attachmentContentType || '').startsWith('image/')) {
+                const img = document.createElement('img');
+                img.src = source;
+                img.className = 'max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg';
+                viewer.appendChild(img);
+            } else if (source.startsWith('data:application/pdf') || (log.attachmentContentType || '') === 'application/pdf') {
+                const iframe = document.createElement('iframe');
+                iframe.src = source;
+                iframe.className = 'w-full h-[65vh] rounded-xl border border-slate-800';
+                viewer.appendChild(iframe);
+            } else {
+                const link = document.createElement('a');
+                link.href = source;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.download = log.attachmentFileName || 'attachment';
+                link.textContent = 'Open / Download Attachment';
+                link.className = 'px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold';
+                viewer.appendChild(link);
             }
 
             modal.classList.remove('hidden');
         }
 
-        // Helper to format staff display names cleanly
+
         function getFormattedStaffName(req) {
             // 1. If explicit display name exists and isn't just an email username, use it
             let name = req.empName || req.staffName || req.name;
@@ -2274,10 +2363,15 @@
             }
         }
 
-        function updateLeaveStatus(key, status) {
-            db.ref(`leave_requests/${key}/status`).set(status).then(() => {
-                showToast(`Leave request updated to ${status}.`);
-            }).catch(err => showToast(err.message, 'error'));
+        async function updateLeaveStatus(key, status) {
+            try {
+                requireAuthorizedAdmin();
+                await db.ref(`leave_requests/${key}/status`).set(status);
+                showToast(`Leave request updated to ${escapeHtml(status)}.`, 'success');
+            } catch (err) {
+                console.error(err);
+                showToast(err.message || 'Failed to update leave status.', 'error');
+            }
         }
 
         function viewAttachment(key) {
@@ -2299,9 +2393,6 @@
             modal.classList.remove('hidden');
         }
 
-        function closeAttachmentModal() {
-            document.getElementById('attachmentModal').classList.add('hidden');
-        }
 
         /* ==================== ADVANCED SALES & INVENTORY FORMULA LOGIC ==================== */
 
@@ -2457,10 +2548,10 @@
                 row.className = 'hover:bg-slate-900/50 transition';
                 row.innerHTML = `
                     <td class="p-3">
-                        <span class="font-bold text-slate-200 block">${cawangan}</span>
-                        <span class="text-[10px] text-slate-500 font-mono">${date}</span>
+                        <span class="font-bold text-slate-200 block">${escapeHtml(cawangan)}</span>
+                        <span class="text-[10px] text-slate-500 font-mono">${escapeHtml(date)}</span>
                     </td>
-                    <td class="p-3 text-slate-300">${submittedBy}</td>
+                    <td class="p-3 text-slate-300">${escapeHtml(submittedBy)}</td>
                     <td class="p-3 font-mono text-amber-300 font-semibold">${bagAyam} bags</td>
                     <td class="p-3 font-mono text-slate-300">RM ${parseFloat(salesCash).toFixed(2)}</td>
                     <td class="p-3 font-mono text-emerald-400 font-bold">RM ${parseFloat(grandTotal).toFixed(2)}</td>
@@ -2468,13 +2559,20 @@
                         <button onclick="openSalesModal('${report.key}')" class="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-400 text-[10px] font-semibold border border-slate-700 transition">
                             <i class="fa-solid fa-pen-to-square"></i> Edit
                         </button>
-                        <button onclick="alert('Catatan: ${report.catatan || 'None'}')" class="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] border border-slate-700 transition">
+                        <button onclick="showSalesNote('${report.key}')" class="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] border border-slate-700 transition">
                             <i class="fa-solid fa-file-lines"></i> Notes
                         </button>
                     </td>
                 `;
                 tbody.appendChild(row);
             });
+        }
+
+        function showSalesNote(key) {
+            const report = salesReports.find(r => r.key === key);
+            if (!report) return;
+            const note = report.catatan || 'None';
+            showToast(note, 'info');
         }
 
         // Clears all filters and resets the list
@@ -2586,12 +2684,20 @@
             document.getElementById('salesModal').classList.add('hidden');
         }
 
-        function handleSalesSubmit(e) {
+        async function handleSalesSubmit(e) {
             e.preventDefault();
             const key = document.getElementById('salesKey').value;
             if (!key) return;
 
-            const calc = recalculateSales();
+            try {
+                requireAuthorizedAdmin();
+                const staffMealPcs = getNum('salesStaffMeal');
+                const knownStaffCount = staffDirectory.size;
+                if (knownStaffCount > 0 && staffMealPcs > knownStaffCount * 2) {
+                    throw new Error(`Staff Meal cannot exceed ${knownStaffCount * 2} pcs based on ${knownStaffCount} staff currently known to the system.`);
+                }
+
+                const calc = recalculateSales();
 
             const updatedData = {
                 cawangan: document.getElementById('salesCawangan').value.trim(),
@@ -2676,12 +2782,13 @@
                 }
             };
 
-            db.ref(`sales_updates/${key}`).update(updatedData).then(() => {
-                showToast("Sales log & inventory calculation updated successfully.");
+                await db.ref(`sales_updates/${key}`).update(updatedData);
+                showToast("Sales log & inventory calculation updated successfully.", 'success');
                 closeSalesModal();
-            }).catch(err => {
-                showToast(err.message, 'error');
-            });
+            } catch (err) {
+                console.error(err);
+                showToast(err.message || 'Failed to update sales log.', 'error');
+            }
         }
 
         // ISO Week Number Helper
@@ -2816,55 +2923,181 @@
         });
 
         function initPayslipStaffDropdown() {
-            const payslipSelect = document.getElementById('payslipStaffSelect');
-            if (!payslipSelect) return;
-        
-            // Method 1: Sync directly from existing manualStaffSelect if it already has data
-            const manualSelect = document.getElementById('manualStaffSelect');
-            if (manualSelect && manualSelect.options.length > 1) {
-                payslipSelect.innerHTML = manualSelect.innerHTML;
+            rebuildStaffDirectory();
+        }
+
+        function renderPayslipList() {
+            const tbody = document.getElementById('payslipTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            if (!payslipRecords.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-500 text-xs">No payslips uploaded yet.</td></tr>';
                 return;
             }
-        
-            // Method 2: Fetch staff dynamically from Firebase (Presence & Attendance Logs)
-            const staffMap = new Map();
-        
-            // Helper to add staff options into dropdown
-            const updateSelectUI = () => {
-                payslipSelect.innerHTML = '<option value="" class="bg-slate-900 text-slate-300">Select Staff Member</option>';
-                staffMap.forEach((staff) => {
-                    const opt = document.createElement('option');
-                    opt.className = "bg-slate-900 text-slate-200"; // Dark mode options styling fix
-                    opt.value = JSON.stringify({ name: staff.name, email: staff.email });
-                    opt.textContent = `${staff.name} (${staff.email})`;
-                    payslipSelect.appendChild(opt);
-                });
-            };
-        
-            // Load from presence node
-            db.ref('presence').on('value', (snap) => {
-                const val = snap.val();
-                if (val) {
-                    Object.values(val).forEach(s => {
-                        if (s.email) {
-                            const name = s.name || s.empName || s.email.split('@')[0];
-                            staffMap.set(s.email.toLowerCase(), { name, email: s.email });
-                        }
-                    });
-                    updateSelectUI();
-                }
+
+            payslipRecords.forEach(record => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-slate-900/50 transition';
+                const amount = Number(record.amount);
+                const amountText = Number.isFinite(amount) ? `RM ${amount.toFixed(2)}` : '--';
+                const uploaded = record.uploadedAt ? new Date(record.uploadedAt).toLocaleString() : '--';
+
+                row.innerHTML = `
+                    <td class="p-3 font-semibold text-slate-200">${escapeHtml(record.staffName || 'Staff')}</td>
+                    <td class="p-3 text-slate-400">${escapeHtml(record.staffEmail || '--')}</td>
+                    <td class="p-3 font-mono text-indigo-300">${escapeHtml(record.period || '--')}</td>
+                    <td class="p-3 font-mono text-emerald-400">${amountText}</td>
+                    <td class="p-3 text-slate-500">${escapeHtml(uploaded)}</td>
+                    <td class="p-3 text-right space-x-1">
+                        ${record.downloadUrl ? `<button type="button" onclick="viewPayslip('${record.key}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-indigo-300 text-[10px] font-semibold border border-slate-700">View</button>` : ''}
+                        <button type="button" onclick="deletePayslip('${record.key}')" class="px-2 py-1 rounded bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 text-[10px] font-semibold border border-rose-800/50">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
             });
-        
-            // Fallback: Also scan existing attendance logs to ensure no staff member is missed
-            if (typeof attendanceLogs !== 'undefined' && attendanceLogs.length > 0) {
-                attendanceLogs.forEach(log => {
-                    if (log.userEmail && log.empName) {
-                        staffMap.set(log.userEmail.toLowerCase(), { name: log.empName, email: log.userEmail });
+        }
+
+        function viewPayslip(key) {
+            const record = payslipRecords.find(r => r.key === key);
+            if (!record?.downloadUrl) {
+                showToast('Payslip file is unavailable.', 'error');
+                return;
+            }
+            const viewer = document.getElementById('attachmentViewer');
+            const modal = document.getElementById('attachmentModal');
+            const title = document.getElementById('attachmentModalTitle');
+            if (!viewer || !modal) return;
+
+            title.textContent = `Payslip: ${record.staffName || 'Staff'} — ${record.period || ''}`;
+            viewer.innerHTML = '';
+            if ((record.contentType || '').startsWith('image/')) {
+                const img = document.createElement('img');
+                img.src = record.downloadUrl;
+                img.className = 'max-w-full max-h-[70vh] object-contain rounded-lg';
+                viewer.appendChild(img);
+            } else {
+                const iframe = document.createElement('iframe');
+                iframe.src = record.downloadUrl;
+                iframe.className = 'w-full h-[65vh] rounded-xl border border-slate-800';
+                viewer.appendChild(iframe);
+            }
+            modal.classList.remove('hidden');
+        }
+
+        async function deletePayslip(key) {
+            if (!isAuthorizedAdmin()) {
+                showToast('Unauthorized.', 'error');
+                return;
+            }
+            const record = payslipRecords.find(r => r.key === key);
+            if (!record || !confirm(`Delete payslip for ${record.staffName || 'staff'} (${record.period || ''})?`)) return;
+
+            try {
+                requireAuthorizedAdmin();
+                if (record.storagePath) {
+                    try { await storage.ref(record.storagePath).delete(); } catch (storageErr) {
+                        if (storageErr.code !== 'storage/object-not-found') throw storageErr;
                     }
-                });
-                updateSelectUI();
+                }
+                await db.ref(`payslips/${key}`).remove();
+                showToast('Payslip deleted successfully.', 'success');
+            } catch (err) {
+                console.error(err);
+                showToast(err.message || 'Failed to delete payslip.', 'error');
             }
         }
+
+        async function handlePayslipSubmit(e) {
+            e.preventDefault();
+
+            const submitBtn = document.getElementById('payslipSubmitBtn');
+            const staffValue = document.getElementById('payslipStaffSelect').value;
+            const period = document.getElementById('payslipPeriod').value;
+            const amountRaw = document.getElementById('payslipAmount').value;
+            const file = document.getElementById('payslipFile').files[0];
+
+            try {
+                requireAuthorizedAdmin();
+                if (!staffValue || !period || !file) throw new Error('Please complete staff, pay period, and document fields.');
+
+                validateFile(file, MAX_PAYSLIP_BYTES, ALLOWED_PAYSLIP_TYPES);
+                const staff = JSON.parse(staffValue);
+                const amount = amountRaw === '' ? null : Number(amountRaw);
+                if (amount !== null && (!Number.isFinite(amount) || amount < 0)) {
+                    throw new Error('Net salary must be a valid non-negative amount.');
+                }
+
+                const duplicate = payslipRecords.find(r =>
+                    (r.staffEmail || '').toLowerCase() === (staff.email || '').toLowerCase() &&
+                    r.period === period
+                );
+                if (duplicate && !confirm('A payslip already exists for this staff member and period. Replace it?')) {
+                    return;
+                }
+
+                const original = submitBtn.innerHTML;
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading...';
+
+                const stamp = Date.now();
+                const storagePath = `payslips/${encodeURIComponent(staff.email.toLowerCase())}/${period}/${stamp}_${safeFileName(file.name)}`;
+                const storageRef = storage.ref(storagePath);
+                const snapshot = await storageRef.put(file, {
+                    contentType: file.type,
+                    customMetadata: {
+                        uploadedBy: auth.currentUser.email,
+                        staffEmail: staff.email,
+                        period
+                    }
+                });
+                const downloadUrl = await snapshot.ref.getDownloadURL();
+
+                if (duplicate) {
+                    if (duplicate.storagePath) {
+                        try { await storage.ref(duplicate.storagePath).delete(); } catch (_) {}
+                    }
+                    await db.ref(`payslips/${duplicate.key}`).update({
+                        staffName: staff.name,
+                        staffEmail: staff.email,
+                        period,
+                        amount,
+                        fileName: file.name,
+                        contentType: file.type,
+                        storagePath,
+                        downloadUrl,
+                        uploadedAt: stamp,
+                        uploadedBy: auth.currentUser.email
+                    });
+                } else {
+                    const key = db.ref('payslips').push().key;
+                    await db.ref(`payslips/${key}`).set({
+                        staffName: staff.name,
+                        staffEmail: staff.email,
+                        period,
+                        amount,
+                        fileName: file.name,
+                        contentType: file.type,
+                        storagePath,
+                        downloadUrl,
+                        uploadedAt: stamp,
+                        uploadedBy: auth.currentUser.email
+                    });
+                }
+
+                document.getElementById('payslipUploadForm').reset();
+                showToast('Payslip uploaded successfully.', 'success');
+            } catch (err) {
+                console.error('Payslip upload failed:', err);
+                showToast(err.message || 'Payslip upload failed.', 'error');
+            } finally {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit Payslip';
+                }
+            }
+        }
+
     </script>
 </body>
 </html>
