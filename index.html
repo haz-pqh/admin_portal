@@ -222,7 +222,12 @@
                                 <p class="text-xs text-slate-400">View live staff check-ins and registered entries</p>
                             </div>
                             <!-- Search Filter -->
-                            <input type="text" id="attendanceSearch" oninput="renderAttendanceTable()" placeholder="Search staff or status..." class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500 w-full sm:w-52" />
+                            <div class="flex items-center gap-2 w-full sm:w-auto">
+                                <input type="text" id="attendanceSearch" oninput="renderAttendanceTable()" placeholder="Search staff or status..." class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500 w-full sm:w-52" />
+                                <button type="button" onclick="exportAttendanceCSV()" class="shrink-0 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/30 text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1.5">
+                                    <i class="fa-solid fa-file-csv"></i> Export
+                                </button>
+                            </div>
                         </div>
 
                         <div class="overflow-x-auto">
@@ -400,6 +405,11 @@
                             <button onclick="clearSalesFilters()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-3 py-2 rounded-xl border border-slate-700 transition flex items-center gap-1">
                                 <i class="fa-solid fa-rotate-left text-[10px]"></i> Reset
                             </button>
+
+                            <!-- Export Button -->
+                            <button onclick="exportSalesCSV()" class="bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/30 text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1.5">
+                                <i class="fa-solid fa-file-csv"></i> Export
+                            </button>
                         </div>
                     </div>
                     <div class="overflow-x-auto">
@@ -512,7 +522,12 @@
                         <h3 class="text-sm font-bold text-white flex items-center gap-2">
                             <i class="fa-solid fa-file-invoice text-emerald-400"></i> Uploaded Payslips Record
                         </h3>
-                        <span class="text-[10px] text-slate-400">Firebase Storage & Realtime Database</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] text-slate-400 hidden sm:inline">Firebase Storage & Realtime Database</span>
+                            <button type="button" onclick="exportPayslipsCSV()" class="bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/30 text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1.5">
+                                <i class="fa-solid fa-file-csv"></i> Export
+                            </button>
+                        </div>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-xs text-slate-300">
@@ -1170,6 +1185,127 @@
                     select.value = current;
                 }
             });
+        }
+
+        // ==================== CSV EXPORT HELPER ====================
+        // Builds a CSV file from an array of column definitions + row objects,
+        // then triggers a browser download. Used by the Attendance, Sales, and
+        // Payslip tabs to export exactly what's currently filtered on screen.
+        function escapeCsvCell(value) {
+            const str = value === null || value === undefined ? '' : String(value);
+            if (/[",\n\r]/.test(str)) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        }
+
+        function exportRowsToCSV(filenamePrefix, headers, rows) {
+            if (!rows || rows.length === 0) {
+                showToast('Nothing to export — no rows match the current filters.', 'error');
+                return;
+            }
+
+            const lines = [
+                headers.map(escapeCsvCell).join(','),
+                ...rows.map(row => row.map(escapeCsvCell).join(','))
+            ];
+
+            // Prepend a UTF-8 BOM so Excel correctly renders currency symbols / special characters.
+            const csvContent = '\uFEFF' + lines.join('\r\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const today = getLocalDateStr();
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${filenamePrefix}_${today}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            showToast(`Exported ${rows.length} row${rows.length === 1 ? '' : 's'} to CSV.`, 'success');
+        }
+
+        // Attendance Logs export — respects the current search box filter.
+        function exportAttendanceCSV() {
+            const search = (document.getElementById('attendanceSearch')?.value || '').toLowerCase();
+            const filtered = attendanceLogs.filter(log => {
+                const name = (log.empName || '').toLowerCase();
+                const email = (log.userEmail || '').toLowerCase();
+                const status = (log.punctualityStatus || '').toLowerCase();
+                return name.includes(search) || email.includes(search) || status.includes(search);
+            });
+
+            const headers = ['Date', 'Staff Name', 'Email', 'Clock In', 'Clock Out', 'Remarks', 'Status'];
+            const rows = filtered.map(log => [
+                log.date || '',
+                log.empName || '',
+                log.userEmail || '',
+                log.clockIn || '',
+                log.clockOut || '',
+                log.remarks || log.durationText || '',
+                log.punctualityStatus || 'ON TIME'
+            ]);
+
+            exportRowsToCSV('attendance_logs', headers, rows);
+        }
+
+        // Sales Reports export — respects the current branch/date filters.
+        function exportSalesCSV() {
+            const selectedBranch = (document.getElementById('salesFilterBranch')?.value || '').toLowerCase().trim();
+            const selectedDate = document.getElementById('salesFilterDate')?.value || '';
+
+            const filtered = salesReports.filter(report => {
+                const branchName = (report.cawangan || report.branch || '').toLowerCase().trim();
+                const reportDate = report.date || '';
+                const matchesBranch = !selectedBranch || branchName === selectedBranch;
+                const matchesDate = !selectedDate || reportDate === selectedDate;
+                return matchesBranch && matchesDate;
+            });
+
+            const headers = [
+                'Date', 'Branch', 'Submitted By', 'Bag Ayam (bags)', 'Sales Cash (RM)',
+                'Misi (RM)', 'Lalamove (RM)', 'FoodPanda (RM)', 'GrabFood (RM)', 'ShopeeFood (RM)',
+                'Grand Total (RM)', 'Notes'
+            ];
+            const rows = filtered.map(report => {
+                const platforms = report.platforms || {};
+                return [
+                    report.date || '',
+                    report.cawangan || report.branch || '',
+                    report.submittedBy || '',
+                    report.jumlahBag ?? report.bagAyam ?? 0,
+                    Number(report.salesCash ?? 0).toFixed(2),
+                    Number(platforms.misi ?? 0).toFixed(2),
+                    Number(platforms.lalamove ?? 0).toFixed(2),
+                    Number(platforms.foodPanda ?? 0).toFixed(2),
+                    Number(platforms.grabFood ?? 0).toFixed(2),
+                    Number(platforms.shopeeFood ?? 0).toFixed(2),
+                    Number(report.totalDailySales ?? 0).toFixed(2),
+                    report.catatan || ''
+                ];
+            });
+
+            exportRowsToCSV('sales_reports', headers, rows);
+        }
+
+        // Payslip Records export — exports everything currently loaded.
+        function exportPayslipsCSV() {
+            const headers = ['Staff Name', 'Email', 'Position', 'Period', 'Net Salary (RM)', 'Uploaded At', 'Uploaded By'];
+            const rows = payslipRecords.map(record => {
+                const amount = Number(record.amount);
+                return [
+                    record.staffName || '',
+                    record.staffEmail || '',
+                    record.position || '',
+                    record.period || '',
+                    Number.isFinite(amount) ? amount.toFixed(2) : '',
+                    record.uploadedAt ? new Date(record.uploadedAt).toLocaleString() : '',
+                    record.uploadedBy || ''
+                ];
+            });
+
+            exportRowsToCSV('payslip_records', headers, rows);
         }
 
         function generateAutoBranchCode() {
