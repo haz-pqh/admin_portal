@@ -422,60 +422,104 @@
                 </div>
             </section>
 
-            <!-- TAB: PAYSLIPS -->
+            <!-- TAB: PAYSLIPS WITH SME MALAYSIA AUTOMATED CALCULATOR -->
             <section id="tab-payslips" class="tab-content hidden space-y-6">
                 <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
                     <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
                         <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                            <i class="fa-solid fa-cloud-arrow-up text-indigo-400"></i> Upload Staff Payslip
+                            <i class="fa-solid fa-calculator text-indigo-400"></i> SME Malaysia Automated Staff Payslip Generator
                         </h3>
-                        <span class="text-[10px] text-slate-400 bg-slate-800 px-2.5 py-1 rounded-lg">Admin Management</span>
+                        <span class="text-[10px] text-slate-400 bg-slate-800 px-2.5 py-1 rounded-lg">Employment Act Compliant</span>
                     </div>
-
+            
                     <form id="payslipUploadForm" onsubmit="handlePayslipSubmit(event)" class="space-y-4">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <label class="block text-xs font-semibold text-slate-400 mb-1">Select Staff Member *</label>
-                                <select id="payslipStaffSelect" required class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500">
+                                <select id="payslipStaffSelect" onchange="autoCalculatePayslip()" required class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500">
                                     <option value="">Select Staff Member</option>
                                 </select>
                             </div>
                             <div>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1">Staff Position *</label>
+                                <select id="payslipPosition" onchange="autoCalculatePayslip()" required class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500">
+                                    <option value="MANAGER">Branch Manager (RM 3,500)</option>
+                                    <option value="SUPERVISOR">Supervisor (RM 2,500)</option>
+                                    <option value="SENIOR_CREW">Senior Kitchen / Service Crew (RM 2,000)</option>
+                                    <option value="CREW" selected>Kitchen / Service Crew (RM 1,700)</option>
+                                </select>
+                            </div>
+                            <div>
                                 <label class="block text-xs font-semibold text-slate-400 mb-1">Pay Period *</label>
-                                <input type="month" id="payslipPeriod" required class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500" />
+                                <input type="month" id="payslipPeriod" onchange="autoCalculatePayslip()" required class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500" />
                             </div>
                         </div>
-
+            
+                        <!-- LIVE ATTENDANCE & PAYROLL CALCULATION BREAKDOWN SUMMARY -->
+                        <div class="bg-slate-950/80 border border-indigo-500/30 rounded-2xl p-4 space-y-3">
+                            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                                <span class="text-xs font-bold text-indigo-400 uppercase tracking-wider"><i class="fa-solid fa-chart-simple"></i> Attendance & SME Statutory Calculation Breakdown</span>
+                                <span id="payslipAttendanceCount" class="text-[11px] text-emerald-400 font-mono">Present: 0 days | Absent: 0 days</span>
+                            </div>
+            
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                                <div class="bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                                    <span class="text-slate-400 text-[10px] block">Basic Salary</span>
+                                    <span id="dispBasicSalary" class="text-white font-mono font-bold">RM 0.00</span>
+                                </div>
+                                <div class="bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                                    <span class="text-rose-400 text-[10px] block">Absent Deduction (/26 days)</span>
+                                    <span id="dispAbsentDeduction" class="text-rose-400 font-mono font-bold">- RM 0.00</span>
+                                </div>
+                                <div class="bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                                    <span class="text-indigo-300 text-[10px] block">Calculated Gross Salary</span>
+                                    <span id="dispGrossSalary" class="text-indigo-300 font-mono font-bold">RM 0.00</span>
+                                </div>
+                                <div class="bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                                    <span class="text-amber-400 text-[10px] block">Employee Deductions (EPF/SOCSO/EIS)</span>
+                                    <span id="dispEmployeeDeductions" class="text-amber-400 font-mono font-bold">- RM 0.00</span>
+                                </div>
+                            </div>
+            
+                            <!-- DETAILED STATUTORY RATES TABLE -->
+                            <div class="grid grid-cols-3 gap-2 text-[11px] text-slate-400 bg-slate-900/50 p-2.5 rounded-xl border border-slate-800/80">
+                                <div>EPF (KWSP 11%): <span id="statEPF" class="text-slate-200 font-mono font-semibold">RM 0.00</span></div>
+                                <div>SOCSO (PERKESO): <span id="statSOCSO" class="text-slate-200 font-mono font-semibold">RM 0.00</span></div>
+                                <div>EIS (SIP 0.2%): <span id="statEIS" class="text-slate-200 font-mono font-semibold">RM 0.00</span></div>
+                            </div>
+                        </div>
+            
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs font-semibold text-slate-400 mb-1">Net Salary (RM)</label>
-                                <input type="number" id="payslipAmount" step="0.01" placeholder="e.g. 3500.00" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500" />
+                                <label class="block text-xs font-semibold text-slate-400 mb-1">Calculated Net Salary (RM) *</label>
+                                <input type="number" id="payslipAmount" step="0.01" readonly placeholder="0.00" class="w-full bg-slate-950/80 border border-emerald-500/50 text-emerald-400 font-bold font-mono text-sm rounded-xl px-3 py-2.5 cursor-not-allowed focus:outline-none" />
                             </div>
                             <div>
-                                <label class="block text-xs font-semibold text-slate-400 mb-1">Payslip Document (PDF) *</label>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1">Payslip Document (PDF / Image) *</label>
                                 <input type="file" id="payslipFile" accept="application/pdf,image/*" required class="w-full bg-slate-950 border border-slate-800 text-slate-400 text-xs rounded-xl px-3 py-1.5 focus:outline-none file:mr-3 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-indigo-600/20 file:text-indigo-400 hover:file:bg-indigo-600/30" />
                             </div>
                         </div>
-
+            
                         <button type="submit" id="payslipSubmitBtn" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs py-2.5 rounded-xl transition flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-paper-plane"></i> Submit Payslip
+                            <i class="fa-solid fa-paper-plane"></i> Submit & Save Payslip
                         </button>
                     </form>
                 </div>
-
+            
+                <!-- TABLE OF STORED PAYSLIPS -->
                 <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
                     <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
                         <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                            <i class="fa-solid fa-file-invoice text-emerald-400"></i> Uploaded Payslips
+                            <i class="fa-solid fa-file-invoice text-emerald-400"></i> Uploaded Payslips Record
                         </h3>
-                        <span class="text-[10px] text-slate-400">Stored securely in Firebase Storage</span>
+                        <span class="text-[10px] text-slate-400">Firebase Storage & Realtime Database</span>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-xs text-slate-300">
                             <thead class="bg-slate-950 text-slate-400 uppercase text-[10px] border-b border-slate-800">
                                 <tr>
                                     <th class="p-3">Staff</th>
-                                    <th class="p-3">Email</th>
+                                    <th class="p-3">Position</th>
                                     <th class="p-3">Period</th>
                                     <th class="p-3">Net Salary</th>
                                     <th class="p-3">Uploaded</th>
@@ -2922,30 +2966,137 @@
             renderStaffOverviewList();
         });
 
+        // SME Malaysia Position Base Salary Map
+        const POSITION_BASE_SALARIES = {
+            'MANAGER': 3500.00,
+            'SUPERVISOR': 2500.00,
+            'SENIOR_CREW': 2000.00,
+            'CREW': 1700.00
+        };
+        
+        // Calculates SME Malaysia statutory deductions (Employment Act 1955 standard basis)
+        function calculateSMEPayroll(basicSalary, absentDays, totalWorkingDays = 26) {
+            const dailyRate = basicSalary / totalWorkingDays;
+            const absentDeduction = absentDays * dailyRate;
+            const grossSalary = Math.max(0, basicSalary - absentDeduction);
+        
+            // KWSP / EPF Employee Contribution (11%)
+            const epfEmployee = Math.round(grossSalary * 0.11 * 100) / 100;
+        
+            // PERKESO / SOCSO Employee Contribution (Capped at RM 5,000 salary limit)
+            const socsoCap = Math.min(grossSalary, 5000);
+            const socsoEmployee = Math.round(socsoCap * 0.005 * 100) / 100;
+        
+            // SIP / EIS Employee Contribution (0.2%, Capped at RM 5,000 salary limit)
+            const eisCap = Math.min(grossSalary, 5000);
+            const eisEmployee = Math.round(eisCap * 0.002 * 100) / 100;
+        
+            const totalDeductions = epfEmployee + socsoEmployee + eisEmployee;
+            const netSalary = Math.max(0, grossSalary - totalDeductions);
+        
+            return {
+                dailyRate,
+                absentDeduction,
+                grossSalary,
+                epfEmployee,
+                socsoEmployee,
+                eisEmployee,
+                totalDeductions,
+                netSalary
+            };
+        }
+        
+        // Automatically calculates breakdown based on staff attendance logs & selected position
+        function autoCalculatePayslip() {
+            const staffSelectValue = document.getElementById('payslipStaffSelect')?.value;
+            const position = document.getElementById('payslipPosition')?.value || 'CREW';
+            const period = document.getElementById('payslipPeriod')?.value;
+        
+            const basicSalary = POSITION_BASE_SALARIES[position] || 1700.00;
+        
+            if (!staffSelectValue || !period) {
+                updatePayslipUI(basicSalary, 0, 0, calculateSMEPayroll(basicSalary, 0));
+                return;
+            }
+        
+            let staffEmail = '';
+            try {
+                const selectedStaff = JSON.parse(staffSelectValue);
+                staffEmail = (selectedStaff.email || '').toLowerCase().trim();
+            } catch (_) {
+                updatePayslipUI(basicSalary, 0, 0, calculateSMEPayroll(basicSalary, 0));
+                return;
+            }
+        
+            let presentDays = 0;
+            let absentDays = 0;
+        
+            if (Array.isArray(window.attendanceLogs)) {
+                window.attendanceLogs.forEach(log => {
+                    const logEmail = (log.userEmail || log.email || '').toLowerCase().trim();
+                    const logDate = log.date || '';
+        
+                    if (logEmail === staffEmail && logDate.startsWith(period)) {
+                        const status = log.punctualityStatus || '';
+                        if (status === 'ABSENT') {
+                            absentDays++;
+                        } else if (status === 'ON TIME' || status === 'LATE' || status === 'PRESENT') {
+                            presentDays++;
+                        }
+                    }
+                });
+            }
+        
+            const calc = calculateSMEPayroll(basicSalary, absentDays);
+            updatePayslipUI(basicSalary, presentDays, absentDays, calc);
+        }
+        
+        // Helper to refresh live UI fields
+        function updatePayslipUI(basicSalary, presentDays, absentDays, calc) {
+            const countEl = document.getElementById('payslipAttendanceCount');
+            if (countEl) countEl.textContent = `Present: ${presentDays} days | Absent: ${absentDays} days`;
+        
+            const setTxt = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = val;
+            };
+        
+            setTxt('dispBasicSalary', `RM ${basicSalary.toFixed(2)}`);
+            setTxt('dispAbsentDeduction', `- RM ${calc.absentDeduction.toFixed(2)}`);
+            setTxt('dispGrossSalary', `RM ${calc.grossSalary.toFixed(2)}`);
+            setTxt('dispEmployeeDeductions', `- RM ${calc.totalDeductions.toFixed(2)}`);
+            setTxt('statEPF', `RM ${calc.epfEmployee.toFixed(2)}`);
+            setTxt('statSOCSO', `RM ${calc.socsoEmployee.toFixed(2)}`);
+            setTxt('statEIS', `RM ${calc.eisEmployee.toFixed(2)}`);
+        
+            const amountInput = document.getElementById('payslipAmount');
+            if (amountInput) amountInput.value = calc.netSalary.toFixed(2);
+        }
+        
         function initPayslipStaffDropdown() {
             rebuildStaffDirectory();
         }
-
+        
         function renderPayslipList() {
             const tbody = document.getElementById('payslipTableBody');
             if (!tbody) return;
             tbody.innerHTML = '';
-
+        
             if (!payslipRecords.length) {
                 tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-500 text-xs">No payslips uploaded yet.</td></tr>';
                 return;
             }
-
+        
             payslipRecords.forEach(record => {
                 const row = document.createElement('tr');
                 row.className = 'hover:bg-slate-900/50 transition';
                 const amount = Number(record.amount);
                 const amountText = Number.isFinite(amount) ? `RM ${amount.toFixed(2)}` : '--';
                 const uploaded = record.uploadedAt ? new Date(record.uploadedAt).toLocaleString() : '--';
-
+        
                 row.innerHTML = `
                     <td class="p-3 font-semibold text-slate-200">${escapeHtml(record.staffName || 'Staff')}</td>
-                    <td class="p-3 text-slate-400">${escapeHtml(record.staffEmail || '--')}</td>
+                    <td class="p-3 text-slate-400">${escapeHtml(record.position || record.staffEmail || '--')}</td>
                     <td class="p-3 font-mono text-indigo-300">${escapeHtml(record.period || '--')}</td>
                     <td class="p-3 font-mono text-emerald-400">${amountText}</td>
                     <td class="p-3 text-slate-500">${escapeHtml(uploaded)}</td>
@@ -2957,7 +3108,7 @@
                 tbody.appendChild(row);
             });
         }
-
+        
         function viewPayslip(key) {
             const record = payslipRecords.find(r => r.key === key);
             if (!record?.downloadUrl) {
@@ -2968,7 +3119,7 @@
             const modal = document.getElementById('attachmentModal');
             const title = document.getElementById('attachmentModalTitle');
             if (!viewer || !modal) return;
-
+        
             title.textContent = `Payslip: ${record.staffName || 'Staff'} — ${record.period || ''}`;
             viewer.innerHTML = '';
             if ((record.contentType || '').startsWith('image/')) {
@@ -2984,7 +3135,7 @@
             }
             modal.classList.remove('hidden');
         }
-
+        
         async function deletePayslip(key) {
             if (!isAuthorizedAdmin()) {
                 showToast('Unauthorized.', 'error');
@@ -2992,7 +3143,7 @@
             }
             const record = payslipRecords.find(r => r.key === key);
             if (!record || !confirm(`Delete payslip for ${record.staffName || 'staff'} (${record.period || ''})?`)) return;
-
+        
             try {
                 requireAuthorizedAdmin();
                 if (record.storagePath) {
@@ -3007,27 +3158,28 @@
                 showToast(err.message || 'Failed to delete payslip.', 'error');
             }
         }
-
+        
         async function handlePayslipSubmit(e) {
             e.preventDefault();
-
+        
             const submitBtn = document.getElementById('payslipSubmitBtn');
             const staffValue = document.getElementById('payslipStaffSelect').value;
+            const position = document.getElementById('payslipPosition')?.value || 'CREW';
             const period = document.getElementById('payslipPeriod').value;
             const amountRaw = document.getElementById('payslipAmount').value;
             const file = document.getElementById('payslipFile').files[0];
-
+        
             try {
                 requireAuthorizedAdmin();
                 if (!staffValue || !period || !file) throw new Error('Please complete staff, pay period, and document fields.');
-
+        
                 validateFile(file, MAX_PAYSLIP_BYTES, ALLOWED_PAYSLIP_TYPES);
                 const staff = JSON.parse(staffValue);
                 const amount = amountRaw === '' ? null : Number(amountRaw);
                 if (amount !== null && (!Number.isFinite(amount) || amount < 0)) {
                     throw new Error('Net salary must be a valid non-negative amount.');
                 }
-
+        
                 const duplicate = payslipRecords.find(r =>
                     (r.staffEmail || '').toLowerCase() === (staff.email || '').toLowerCase() &&
                     r.period === period
@@ -3035,11 +3187,11 @@
                 if (duplicate && !confirm('A payslip already exists for this staff member and period. Replace it?')) {
                     return;
                 }
-
+        
                 const original = submitBtn.innerHTML;
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading...';
-
+        
                 const stamp = Date.now();
                 const storagePath = `payslips/${encodeURIComponent(staff.email.toLowerCase())}/${period}/${stamp}_${safeFileName(file.name)}`;
                 const storageRef = storage.ref(storagePath);
@@ -3048,44 +3200,38 @@
                     customMetadata: {
                         uploadedBy: auth.currentUser.email,
                         staffEmail: staff.email,
-                        period
+                        period,
+                        position
                     }
                 });
                 const downloadUrl = await snapshot.ref.getDownloadURL();
-
+        
+                const payslipPayload = {
+                    staffName: staff.name,
+                    staffEmail: staff.email,
+                    position,
+                    period,
+                    amount,
+                    fileName: file.name,
+                    contentType: file.type,
+                    storagePath,
+                    downloadUrl,
+                    uploadedAt: stamp,
+                    uploadedBy: auth.currentUser.email
+                };
+        
                 if (duplicate) {
                     if (duplicate.storagePath) {
                         try { await storage.ref(duplicate.storagePath).delete(); } catch (_) {}
                     }
-                    await db.ref(`payslips/${duplicate.key}`).update({
-                        staffName: staff.name,
-                        staffEmail: staff.email,
-                        period,
-                        amount,
-                        fileName: file.name,
-                        contentType: file.type,
-                        storagePath,
-                        downloadUrl,
-                        uploadedAt: stamp,
-                        uploadedBy: auth.currentUser.email
-                    });
+                    await db.ref(`payslips/${duplicate.key}`).update(payslipPayload);
                 } else {
                     const key = db.ref('payslips').push().key;
-                    await db.ref(`payslips/${key}`).set({
-                        staffName: staff.name,
-                        staffEmail: staff.email,
-                        period,
-                        amount,
-                        fileName: file.name,
-                        contentType: file.type,
-                        storagePath,
-                        downloadUrl,
-                        uploadedAt: stamp,
-                        uploadedBy: auth.currentUser.email
-                    });
+                    await db.ref(`payslips/${key}`).set(payslipPayload);
                 }
-
+        
                 document.getElementById('payslipUploadForm').reset();
+                autoCalculatePayslip();
                 showToast('Payslip uploaded successfully.', 'success');
             } catch (err) {
                 console.error('Payslip upload failed:', err);
