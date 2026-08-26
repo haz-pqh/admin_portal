@@ -871,6 +871,59 @@
         </div>
     </div>
 
+    <!-- EDIT ATTENDANCE LOG MODAL -->
+    <div id="editAttendanceModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-pen-to-square text-indigo-400"></i> Edit Attendance Log
+                </h3>
+                <button onclick="closeEditAttendanceModal()" class="text-slate-400 hover:text-white text-lg">&times;</button>
+            </div>
+    
+            <form id="editAttendanceForm" onsubmit="saveAttendanceLogEdit(event)" class="space-y-4">
+                <input type="hidden" id="editLogKey">
+    
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Staff Name / Email</label>
+                    <input type="text" id="editLogStaffName" disabled class="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-3 py-2 text-xs text-slate-400 cursor-not-allowed">
+                </div>
+    
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Clock In</label>
+                        <input type="text" id="editLogClockIn" placeholder="08:00 AM" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Clock Out</label>
+                        <input type="text" id="editLogClockOut" placeholder="05:00 PM" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+    
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Status</label>
+                    <select id="editLogStatus" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+                        <option value="PRESENT">PRESENT</option>
+                        <option value="LATE">LATE</option>
+                        <option value="ABSENT">ABSENT</option>
+                        <option value="ON_LEAVE">ON LEAVE</option>
+                        <option value="HALF_DAY">HALF DAY</option>
+                    </select>
+                </div>
+    
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Remarks</label>
+                    <textarea id="editLogRemarks" rows="3" placeholder="Reason or notes..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"></textarea>
+                </div>
+    
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeEditAttendanceModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition">Cancel</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition shadow-lg shadow-indigo-600/30">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Script Logic -->
     <script>
         // 1. FIREBASE CONFIGURATION
@@ -1615,12 +1668,20 @@
                             ${status}
                         </span>
                     </td>
-                    <td class="p-3 text-right">
-                        ${log.hasAttachment && log.attachmentBase64 ? `
-                            <button onclick="viewAttendanceAttachment('${log.key}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-indigo-400 text-[10px] font-semibold border border-slate-700 transition flex items-center gap-1 ml-auto">
-                                <i class="fa-solid fa-paperclip"></i> View File
+                    <td class="p-3 text-right whitespace-nowrap">
+                        <div class="inline-flex items-center justify-end gap-1.5">
+                            ${log.hasAttachment && log.mcBase64 ? `
+                                <button onclick="viewAttachment('${log.key}')" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-indigo-400 text-[11px] font-semibold border border-slate-700 inline-flex items-center gap-1 transition">
+                                    <i class="fa-solid fa-paperclip text-[10px]"></i> File
+                                </button>
+                            ` : ''}
+                            <button onclick="openEditAttendanceModal('${log.key}')" class="px-2.5 py-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-600 text-indigo-400 hover:text-white border border-indigo-500/30 text-[11px] font-semibold transition inline-flex items-center gap-1">
+                                <i class="fa-solid fa-pen-to-square text-[10px]"></i> Edit
                             </button>
-                        ` : '<span class="text-slate-600 text-[10px]">No File</span>'}
+                            <button onclick="deleteAttendanceLog('${log.key}')" class="px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/30 text-[11px] font-semibold transition inline-flex items-center gap-1">
+                                <i class="fa-solid fa-trash-can text-[10px]"></i> Delete
+                            </button>
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(row);
@@ -1630,6 +1691,84 @@
         function closeAttachmentModal() {
             const modal = document.getElementById('attachmentModal');
             if (modal) modal.classList.add('hidden');
+        }
+
+        let currentLogsMap = {}; // Map to store attendance logs by key for quick lookup
+
+        // Open Modal and Populate Inputs
+        function openEditAttendanceModal(logKey) {
+            // Find log from existing attendance data array/object
+            const log = (attendanceLogs || []).find(l => (l.key === logKey || l.id === logKey));
+            if (!log) return;
+        
+            document.getElementById('editLogKey').value = logKey;
+            document.getElementById('editLogStaffName').value = `${log.empName || log.name || 'Staff'} (${log.userEmail || log.email || ''})`;
+            document.getElementById('editLogClockIn').value = log.clockIn || '--';
+            document.getElementById('editLogClockOut').value = log.clockOut || '--';
+            document.getElementById('editLogStatus').value = (log.punctualityStatus || log.status || 'PRESENT').toUpperCase();
+            document.getElementById('editLogRemarks').value = log.remarks || '';
+        
+            document.getElementById('editAttendanceModal').classList.remove('hidden');
+        }
+        
+        function closeEditAttendanceModal() {
+            document.getElementById('editAttendanceModal').classList.add('hidden');
+        }
+        
+        // Save Updated Attendance Log to Firebase
+        async function saveAttendanceLogEdit(event) {
+            event.preventDefault();
+            const key = document.getElementById('editLogKey').value;
+            if (!key) return;
+        
+            const updatedStatus = document.getElementById('editLogStatus').value;
+            const updatedClockIn = document.getElementById('editLogClockIn').value.trim();
+            const updatedClockOut = document.getElementById('editLogClockOut').value.trim();
+            const updatedRemarks = document.getElementById('editLogRemarks').value.trim();
+        
+            // Map color coding based on status
+            let statusColor = 'green';
+            if (updatedStatus === 'ABSENT') statusColor = 'red';
+            if (updatedStatus === 'LATE') statusColor = 'amber';
+            if (updatedStatus === 'ON_LEAVE') statusColor = 'blue';
+        
+            const updates = {
+                punctualityStatus: updatedStatus,
+                clockIn: updatedClockIn,
+                clockOut: updatedClockOut,
+                remarks: updatedRemarks,
+                statusColor: statusColor,
+                editedByAdmin: true,
+                lastModifiedAt: Date.now()
+            };
+        
+            try {
+                await db.ref(`attendance_logs/${key}`).update(updates);
+                closeEditAttendanceModal();
+                if (typeof showToast === 'function') {
+                    showToast('Attendance log updated successfully!', 'success');
+                }
+            } catch (err) {
+                console.error('Failed to update attendance log:', err);
+                if (typeof showToast === 'function') {
+                    showToast('Failed to update attendance log.', 'error');
+                }
+            }
+        }
+        
+        // Delete Log Entry
+        async function deleteAttendanceLog(key) {
+            if (!key) return;
+            if (!confirm('Are you sure you want to delete this attendance log?')) return;
+        
+            try {
+                await db.ref(`attendance_logs/${key}`).remove();
+                if (typeof showToast === 'function') {
+                    showToast('Attendance record deleted.', 'success');
+                }
+            } catch (err) {
+                console.error('Failed to delete log:', err);
+            }
         }
 
         let calCurrentDate = new Date();
