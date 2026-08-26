@@ -3020,59 +3020,58 @@
                 return;
             }
         
-            const staffSelectValue = staffSelectEl.value;
-            const period = periodEl.value; // Format: "YYYY-MM"
+            const period = periodEl.value.trim(); // Format: "YYYY-MM" (e.g., "2026-08")
         
-            // 1. Extract Staff Email and Name flexibly
+            // 1. Extract Selected Staff Email & Name
             let staffEmail = '';
             let staffName = '';
+        
             try {
-                const selectedStaff = JSON.parse(staffSelectValue);
+                const selectedStaff = JSON.parse(staffSelectEl.value);
                 staffEmail = (selectedStaff.email || '').toLowerCase().trim();
-                staffName = (selectedStaff.name || '').toLowerCase().trim();
+                staffName = (selectedStaff.name || selectedStaff.empName || '').toLowerCase().trim();
             } catch (_) {
-                staffEmail = staffSelectValue.toLowerCase().trim();
+                staffEmail = staffSelectEl.value.toLowerCase().trim();
             }
         
-            // 2. Safely convert Firebase Object or Array into a usable list
-            const logsRaw = window.attendanceLogs || window.attendanceRecords || [];
-            const logsArray = Array.isArray(logsRaw) ? logsRaw : Object.values(logsRaw);
+            // 2. Fetch attendance logs from global state / Firebase object
+            const rawLogs = window.attendanceLogs || window.attendance_logs || attendanceLogs || {};
+            
+            // Convert Firebase push-key object (-P-wmKq...) into an array of records
+            const logsArray = Array.isArray(rawLogs) ? rawLogs : Object.values(rawLogs);
         
             let presentDays = 0;
             let absentDays = 0;
         
-            // 3. Match staff attendance records for the selected pay period
+            // 3. Scan & Match Database Logs
             logsArray.forEach(log => {
                 if (!log) return;
         
-                // Support multiple common field names used in attendance logs
-                const logEmail = (log.userEmail || log.email || log.staffEmail || '').toLowerCase().trim();
-                const logName = (log.userName || log.name || log.staffName || '').toLowerCase().trim();
-                const logDate = String(log.date || log.timestamp || log.clockIn || log.createdDate || '');
+                // Field mapping matching your Firebase schema
+                const logEmail = (log.userEmail || log.email || '').toLowerCase().trim();
+                const logName = (log.empName || log.staffName || log.name || '').toLowerCase().trim();
+                const logDate = String(log.date || log.timestamp || '');
+                const status = String(log.punctualityStatus || log.status || '').toUpperCase().trim();
         
-                // Match staff identity AND year-month period
-                const isMatchingStaff = (staffEmail && logEmail === staffEmail) || (staffName && logName === staffName);
-                const isMatchingPeriod = logDate.includes(period);
+                // Match staff member by email OR name
+                const isStaffMatch = (staffEmail && logEmail === staffEmail) || 
+                                     (staffName && logName === staffName);
         
-                if (isMatchingStaff && isMatchingPeriod) {
-                    const status = String(
-                        log.punctualityStatus || log.status || log.attendanceStatus || log.type || ''
-                    ).toUpperCase();
+                // Match year-month period (e.g. "2026-08-26" starts with "2026-08")
+                const isPeriodMatch = logDate.startsWith(period) || logDate.includes(period);
         
-                    if (status.includes('ABSENT')) {
+                if (isStaffMatch && isPeriodMatch) {
+                    if (status === 'ABSENT') {
                         absentDays++;
-                    } else if (
-                        status.includes('PRESENT') || 
-                        status.includes('ON TIME') || 
-                        status.includes('LATE') || 
-                        status.includes('EARLY')
-                    ) {
+                    } else if (['ON TIME', 'LATE', 'PRESENT'].includes(status) || log.clockIn) {
                         presentDays++;
                     }
                 }
             });
         
-            // 4. Calculate final values & update UI elements
+            console.log(`[Payslip Calculation] Staff: ${staffEmail || staffName} | Period: ${period} | Present: ${presentDays} | Absent: ${absentDays}`);
+        
+            // 4. Update SME Calculations & UI
             const calc = calculateSMEPayroll(basicSalary, absentDays);
             updatePayslipUI(basicSalary, presentDays, absentDays, calc);
         }
