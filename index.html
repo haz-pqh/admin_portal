@@ -3006,55 +3006,83 @@
             };
         }
         
-        // Automatically calculates breakdown based on staff attendance logs & selected position
+        // Robust Attendance Connector & SME Payroll Auto-Calculator
         function autoCalculatePayslip() {
-            const staffSelectValue = document.getElementById('payslipStaffSelect')?.value;
-            const position = document.getElementById('payslipPosition')?.value || 'CREW';
-            const period = document.getElementById('payslipPeriod')?.value;
+            const staffSelectEl = document.getElementById('payslipStaffSelect');
+            const positionEl = document.getElementById('payslipPosition');
+            const periodEl = document.getElementById('payslipPeriod');
         
+            const position = positionEl?.value || 'CREW';
             const basicSalary = POSITION_BASE_SALARIES[position] || 1700.00;
         
-            if (!staffSelectValue || !period) {
+            if (!staffSelectEl || !staffSelectEl.value || !periodEl || !periodEl.value) {
                 updatePayslipUI(basicSalary, 0, 0, calculateSMEPayroll(basicSalary, 0));
                 return;
             }
         
+            const staffSelectValue = staffSelectEl.value;
+            const period = periodEl.value; // Format: "YYYY-MM"
+        
+            // 1. Extract Staff Email and Name flexibly
             let staffEmail = '';
+            let staffName = '';
             try {
                 const selectedStaff = JSON.parse(staffSelectValue);
                 staffEmail = (selectedStaff.email || '').toLowerCase().trim();
+                staffName = (selectedStaff.name || '').toLowerCase().trim();
             } catch (_) {
-                updatePayslipUI(basicSalary, 0, 0, calculateSMEPayroll(basicSalary, 0));
-                return;
+                staffEmail = staffSelectValue.toLowerCase().trim();
             }
+        
+            // 2. Safely convert Firebase Object or Array into a usable list
+            const logsRaw = window.attendanceLogs || window.attendanceRecords || [];
+            const logsArray = Array.isArray(logsRaw) ? logsRaw : Object.values(logsRaw);
         
             let presentDays = 0;
             let absentDays = 0;
         
-            if (Array.isArray(window.attendanceLogs)) {
-                window.attendanceLogs.forEach(log => {
-                    const logEmail = (log.userEmail || log.email || '').toLowerCase().trim();
-                    const logDate = log.date || '';
+            // 3. Match staff attendance records for the selected pay period
+            logsArray.forEach(log => {
+                if (!log) return;
         
-                    if (logEmail === staffEmail && logDate.startsWith(period)) {
-                        const status = log.punctualityStatus || '';
-                        if (status === 'ABSENT') {
-                            absentDays++;
-                        } else if (status === 'ON TIME' || status === 'LATE' || status === 'PRESENT') {
-                            presentDays++;
-                        }
+                // Support multiple common field names used in attendance logs
+                const logEmail = (log.userEmail || log.email || log.staffEmail || '').toLowerCase().trim();
+                const logName = (log.userName || log.name || log.staffName || '').toLowerCase().trim();
+                const logDate = String(log.date || log.timestamp || log.clockIn || log.createdDate || '');
+        
+                // Match staff identity AND year-month period
+                const isMatchingStaff = (staffEmail && logEmail === staffEmail) || (staffName && logName === staffName);
+                const isMatchingPeriod = logDate.includes(period);
+        
+                if (isMatchingStaff && isMatchingPeriod) {
+                    const status = String(
+                        log.punctualityStatus || log.status || log.attendanceStatus || log.type || ''
+                    ).toUpperCase();
+        
+                    if (status.includes('ABSENT')) {
+                        absentDays++;
+                    } else if (
+                        status.includes('PRESENT') || 
+                        status.includes('ON TIME') || 
+                        status.includes('LATE') || 
+                        status.includes('EARLY')
+                    ) {
+                        presentDays++;
                     }
-                });
-            }
+                }
+            });
         
+            // 4. Calculate final values & update UI elements
             const calc = calculateSMEPayroll(basicSalary, absentDays);
             updatePayslipUI(basicSalary, presentDays, absentDays, calc);
         }
         
-        // Helper to refresh live UI fields
+        // Helper function to update UI counters and numeric inputs
         function updatePayslipUI(basicSalary, presentDays, absentDays, calc) {
             const countEl = document.getElementById('payslipAttendanceCount');
-            if (countEl) countEl.textContent = `Present: ${presentDays} days | Absent: ${absentDays} days`;
+            if (countEl) {
+                countEl.textContent = `Present: ${presentDays} days | Absent: ${absentDays} days`;
+            }
         
             const setTxt = (id, val) => {
                 const el = document.getElementById(id);
@@ -3065,6 +3093,7 @@
             setTxt('dispAbsentDeduction', `- RM ${calc.absentDeduction.toFixed(2)}`);
             setTxt('dispGrossSalary', `RM ${calc.grossSalary.toFixed(2)}`);
             setTxt('dispEmployeeDeductions', `- RM ${calc.totalDeductions.toFixed(2)}`);
+        
             setTxt('statEPF', `RM ${calc.epfEmployee.toFixed(2)}`);
             setTxt('statSOCSO', `RM ${calc.socsoEmployee.toFixed(2)}`);
             setTxt('statEIS', `RM ${calc.eisEmployee.toFixed(2)}`);
