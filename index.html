@@ -1136,6 +1136,7 @@
         let branchesList = [];
         let staffDirectory = new Map();
         let staffList = [];
+        let autoAddedPresenceEmails = new Set();
         let realtimeListenersBound = false;
         let autoAbsentIntervalId = null;
         let payslipRecords = [];
@@ -1522,6 +1523,7 @@
                 rebuildStaffDirectory();
                 renderPresenceUI();
                 runAutoAbsentCheck();
+                autoAddStaffFromPresence();
             });
 
             db.ref('active_session').on('value', (snap) => {
@@ -1726,6 +1728,51 @@
         }
 
         /* STAFF MANAGEMENT FUNCTIONS */
+
+        // Any email seen in the live 'presence' node that isn't already in the
+        // Staff directory gets auto-created as a bare staff record (name guessed
+        // from the email, everything else left blank/default) so it shows up for
+        // admin to fill in — instead of requiring the email to be typed manually.
+        // Note: if a staff record is deleted while that same email is still active
+        // in presence, it will be auto-recreated the next time presence updates.
+        async function autoAddStaffFromPresence() {
+            const emails = Object.values(presenceData || {})
+                .map(p => String(p?.email || '').trim())
+                .filter(Boolean);
+
+            for (const email of emails) {
+                const key = email.toLowerCase();
+                if (autoAddedPresenceEmails.has(key)) continue;
+
+                const exists = staffList.some(s => (s.email || '').toLowerCase() === key);
+                if (exists) {
+                    autoAddedPresenceEmails.add(key);
+                    continue;
+                }
+
+                // Reserve immediately so a rapid second presence update doesn't push a duplicate.
+                autoAddedPresenceEmails.add(key);
+
+                const fallbackName = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                try {
+                    await db.ref('staff').push({
+                        name: fallbackName,
+                        email,
+                        phone: '',
+                        position: 'CREW',
+                        status: 'ACTIVE',
+                        branch: '',
+                        source: 'presence',
+                        createdAt: Date.now(),
+                        updatedAt: Date.now()
+                    });
+                } catch (err) {
+                    console.error('Auto-add staff from presence failed:', err);
+                    autoAddedPresenceEmails.delete(key);
+                }
+            }
+        }
+
         function populateStaffBranchDropdown() {
             const select = document.getElementById('staffBranch');
             if (!select) return;
@@ -1768,12 +1815,14 @@
                     ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
                     : 'bg-rose-500/20 text-rose-400 border-rose-500/40';
                 const positionLabel = (staff.position || 'CREW').replace(/_/g, ' ');
+                const isAutoDetected = staff.source === 'presence' && !staff.phone && !staff.branch;
 
                 return `
                     <tr class="hover:bg-slate-900/50 transition">
                         <td class="p-3">
                             <span class="font-bold text-slate-200 block">${escapeHtml(staff.name || '--')}</span>
                             <span class="text-[10px] text-slate-500">${escapeHtml(staff.email || '')}</span>
+                            ${isAutoDetected ? '<span class="text-[9px] text-amber-400 font-semibold">● Auto-detected — complete profile</span>' : ''}
                         </td>
                         <td class="p-3 text-slate-400">${escapeHtml(staff.phone || '--')}</td>
                         <td class="p-3 text-slate-300">${escapeHtml(positionLabel)}</td>
