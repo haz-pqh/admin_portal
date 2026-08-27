@@ -222,6 +222,9 @@
                         </div>
                         <div class="flex items-center gap-2 w-full sm:w-auto">
                             <input type="text" id="staffSearch" oninput="renderStaffUI()" placeholder="Search name or email..." class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500 w-full sm:w-52" />
+                            <button onclick="mergeDuplicateStaff()" title="Find and merge staff records sharing the same email" class="shrink-0 px-3 py-2 bg-amber-600/10 hover:bg-amber-600 text-amber-400 hover:text-white border border-amber-500/30 text-xs font-semibold rounded-xl transition flex items-center gap-2">
+                                <i class="fa-solid fa-code-merge"></i> Merge Duplicates
+                            </button>
                             <button onclick="openStaffModal()" class="shrink-0 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-lg transition flex items-center gap-2">
                                 <i class="fa-solid fa-plus"></i> Add Staff
                             </button>
@@ -1136,6 +1139,7 @@
         let branchesList = [];
         let staffDirectory = new Map();
         let staffList = [];
+        let staffListLoaded = false;
         let autoAddedPresenceEmails = new Set();
         let realtimeListenersBound = false;
         let autoAbsentIntervalId = null;
@@ -1503,6 +1507,8 @@
             ['presence', 'active_session', 'branches', 'staff', 'attendance_logs', 'leave_requests', 'sales_updates', 'payslips']
                 .forEach(path => db.ref(path).off());
             realtimeListenersBound = false;
+            staffListLoaded = false;
+            autoAddedPresenceEmails.clear();
             if (autoAbsentIntervalId) {
                 clearInterval(autoAbsentIntervalId);
                 autoAbsentIntervalId = null;
@@ -1548,8 +1554,12 @@
                 staffList = Object.keys(val)
                     .map(key => ({ key, ...val[key] }))
                     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                staffListLoaded = true;
                 rebuildStaffDirectory();
                 renderStaffUI();
+                // Presence may have already fired before this first snapshot arrived —
+                // re-run now that staffList reflects the real database state.
+                autoAddStaffFromPresence();
             });
 
             db.ref('attendance_logs').on('value', (snap) => {
@@ -1736,6 +1746,11 @@
         // Note: if a staff record is deleted while that same email is still active
         // in presence, it will be auto-recreated the next time presence updates.
         async function autoAddStaffFromPresence() {
+            // Wait until the 'staff' node has delivered its first real snapshot —
+            // otherwise staffList is still empty and every presence email looks "new",
+            // which is exactly what caused duplicate staff records before this guard.
+            if (!staffListLoaded) return;
+
             const emails = Object.values(presenceData || {})
                 .map(p => String(p?.email || '').trim())
                 .filter(Boolean);
@@ -1753,11 +1768,22 @@
                 // Reserve immediately so a rapid second presence update doesn't push a duplicate.
                 autoAddedPresenceEmails.add(key);
 
+                // Extra safety net for multiple open admin tabs/sessions: re-check the
+                // live database (not just local state) immediately before writing.
+                // Query using the lowercased form since staff emails are always stored lowercase.
+                try {
+                    const liveSnap = await db.ref('staff').orderByChild('email').equalTo(key).once('value');
+                    if (liveSnap.exists()) continue;
+                } catch (checkErr) {
+                    console.error('Presence auto-add duplicate check failed:', checkErr);
+                    continue;
+                }
+
                 const fallbackName = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
                 try {
                     await db.ref('staff').push({
                         name: fallbackName,
-                        email,
+                        email: key,
                         phone: '',
                         position: 'CREW',
                         status: 'ACTIVE',
@@ -1923,6 +1949,64 @@
             } catch (err) {
                 console.error(err);
                 showToast(err.message || 'Unable to remove staff member.', 'error');
+            }
+        }
+
+        // One-time cleanup for duplicate staff records sharing the same email
+        // (e.g. left over from the presence auto-add race condition). For each
+        // group of duplicates, keeps the most "complete" record — preferring a
+        // manually-created one, then one with phone/branch filled in, then the
+        // oldest — and deletes the rest.
+        async function mergeDuplicateStaff() {
+            try {
+                requireAuthorizedAdmin();
+
+                const groups = new Map();
+                staffList.forEach(s => {
+                    const email = (s.email || '').toLowerCase().trim();
+                    if (!email) return;
+                    if (!groups.has(email)) groups.set(email, []);
+                    groups.get(email).push(s);
+                });
+
+                const duplicateGroups = Array.from(groups.values()).filter(g => g.length > 1);
+                if (duplicateGroups.length === 0) {
+                    showToast('No duplicate staff records found.', 'success');
+                    return;
+                }
+
+                const totalDuplicates = duplicateGroups.reduce((sum, g) => sum + (g.length - 1), 0);
+                if (!confirm(`Found ${totalDuplicates} duplicate staff record(s) across ${duplicateGroups.length} email(s). Merge now? The most complete record for each email will be kept.`)) {
+                    return;
+                }
+
+                const scoreRecord = (s) => {
+                    let score = 0;
+                    if (s.source !== 'presence') score += 4;
+                    if (s.phone) score += 2;
+                    if (s.branch) score += 2;
+                    if (s.position && s.position !== 'CREW') score += 1;
+                    return score;
+                };
+
+                let removedCount = 0;
+                for (const group of duplicateGroups) {
+                    const sorted = [...group].sort((a, b) => {
+                        const scoreDiff = scoreRecord(b) - scoreRecord(a);
+                        if (scoreDiff !== 0) return scoreDiff;
+                        return (a.createdAt || 0) - (b.createdAt || 0);
+                    });
+                    const [keeper, ...duplicates] = sorted;
+                    for (const dup of duplicates) {
+                        await db.ref(`staff/${dup.key}`).remove();
+                        removedCount++;
+                    }
+                }
+
+                showToast(`Merged ${removedCount} duplicate staff record(s).`, 'success');
+            } catch (err) {
+                console.error(err);
+                showToast(err.message || 'Unable to merge duplicate staff records.', 'error');
             }
         }
 
